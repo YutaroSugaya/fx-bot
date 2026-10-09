@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- fxbot 外部死活監視 launchd ジョブ。
+     5 分ごとに /healthz を叩き、不健全なら通知 (scripts/bot-healthcheck.sh)。 -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fxbot.healthcheck</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/USERNAME/.fxbot/bot-healthcheck.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/USERNAME/.fxbot/logs/launchd-healthcheck.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/USERNAME/.fxbot/logs/launchd-healthcheck.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>API_URL</key>
+    <string>http://localhost:8080</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>

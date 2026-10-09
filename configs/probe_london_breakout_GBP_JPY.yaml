@@ -1,0 +1,49 @@
+# London Breakout probe — falsifier smell-test config (GBP_JPY)
+# ------------------------------------------------------------------
+# 戦略 london_breakout が出口を算出する: アジアレンジ [00:00,07:00) UTC を London 窓
+# [07:00,10:00) UTC で最初に 1m 終値ブレイク → SL=0.5×レンジ幅 / TP=1.0×レンジ幅 / MaxHold 480。
+# 下の exit は strategy_computed の placeholder。
+#
+# ⚠️ backtest 専用 probe config。LIVE seed ではない (N 計測対象外・凍結実験と無関係)。
+#    実行: go run ./cmd/backtest -symbol GBP_JPY -config configs/probe_london_breakout_GBP_JPY.yaml \
+#            -from 2023-11-01 -to 2026-06-11 -fee-rate 0.002 -spread-median 1.5 -slippage 0.5
+config_id: "probe-london-gbpjpy"
+generated_at: "2026-06-13T12:00:00+09:00"
+valid_from: "2023-01-01T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: GBP_JPY
+enabled: true
+
+market_regime:
+  type: "unclear"
+  confidence: 0.70
+  reason: "london breakout probe: side は最初のブレイク方向で決定 (both)。regime は縛らない"
+
+strategy:
+  name: "london_breakout"
+
+entry:
+  max_spread_pips: 1.5
+  require_breakout: false
+  direction: "both"
+
+exit:
+  # 出口は戦略 london_breakout.go が算出 (SL=0.5×レンジ幅 / TP=1.0×レンジ幅 / MaxHold 480)。
+  # 下の tp/sl は validator placeholder。runtime には使われない (Signal が上書き)。
+  exit_policy: strategy_computed
+  take_profit_pips: 14.0
+  stop_loss_pips: 10.0
+  max_hold_minutes: 480
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

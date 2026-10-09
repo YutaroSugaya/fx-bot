@@ -1,0 +1,61 @@
+# llm-v7 (USD_JPY) — LLM 判断ループ用の strategy config
+# ------------------------------------------------------------------
+# 中身は exhaustion-fade-usdjpy-probe-v1 と同一の exhaustion_fade ブロック(JST {4,10,11} 時のみ発火)。
+# bot_config.llm_decision.exclude_hours_jst[USD_JPY]=[4,10,11] と組み合わせると、その 3 時間だけ
+# engine がこの戦略を回し、残り 21h は LLM ループが USD/JPY を管理する(住み分け)。差分は 2 点:
+#   1. max_loss_in_this_window_jpy = 0(window kill-switch 無効)。
+#      このカウンタは valid_from 起点でリセットされない累積値なので、有効にすると一定額の負けで
+#      その config が恒久的に新規を止める(ログ上は無言の凍結になる)。
+#      守りは 日次損失cap / per-trade cap / スプレッド / emergency_stop / broker OCO / ナンピン禁止 が担う。
+#   2. entry.max_spread_pips = 3.0(コード側のスプレッドガード 3.0 と揃え、admission 層まで貫通させる)。
+#      JST4 時の exhaustion_fade probe は spread 2.0 の悲観 backtest までしか検証していない —
+#      2.0-3.0 帯の約定コストは未検証領域(lot1000・構造的SLで有界)。
+# 出口は strategy_computed = exhaustion_fade.go が構造的に算出(SL=急騰高値の外+0.5ATR /
+# TP=走り幅の0.5戻し / タイムストップ60分)。下の placeholder は runtime 未使用(Signal が上書き)。
+# 有効化 = DB strategy_configs(status='active')に seed する:
+#   bash scripts/seed_active_config.sh [--apply] [--mode paper_config|live_config] configs/llm_v7_USD_JPY.yaml
+config_id: "llm-v7-usdjpy"
+generated_at: "2026-07-06T17:30:00+09:00"
+valid_from: "2026-07-06T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: USD_JPY
+enabled: true
+
+market_regime:
+  type: "volatile"
+  confidence: 0.50
+  reason: "v7 re-seed; exhaustion fade probe (JST 4/10/11 のみ)。他時間帯のエントリー判断は LLM ループが担当"
+
+strategy:
+  name: "exhaustion_fade"
+
+entry:
+  # スプレッド床はコード側のガードと同じ 3.0(早朝でも spread<3.0 なら試す)。
+  max_spread_pips: 3.0
+  require_breakout: false
+  direction: "both"
+  allowed_hours_jst: [4, 10, 11]
+
+exit:
+  exit_policy: strategy_computed
+  take_profit_pips: 10.0
+  stop_loss_pips: 100.0
+  max_hold_minutes: 60
+  extension_max_minutes: 0
+  extension_unrealized_pips_threshold: 0.0
+  early_exit_window_minutes: 0
+  early_exit_target_pips: 0.0
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  # window kill-switch 無効(0 = ゲート無効)。
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

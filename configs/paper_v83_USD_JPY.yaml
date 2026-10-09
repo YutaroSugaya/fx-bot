@@ -1,0 +1,63 @@
+# paper-v83 (USD_JPY) — paper モード(bot.mode: paper_config)用の active config
+# ------------------------------------------------------------------
+# bot は起動時に DB の strategy_configs(status='active', mode=<bot.mode>)を読む。paper_config 側に
+# 有効な active 行が無いと起動時 validation に落ちて holder が空になり、LLM が go を出しても
+# llm_decision_cycle.go の cfgID=="" 分岐で stage=no_active_config
+# (ダッシュボード「設定未解決でスキップ」)となって発注が消える。paper で LLM ループを動かすときは
+# この config を paper_config の active として seed する。
+#
+# 内容は configs/llm_v7_USD_JPY.yaml と同一 (config_id と日付メタのみ差し替え)。
+# paper と live で同じ条件セットを測るため、ここで条件を作り変えない。
+# 同値性は backend TestPaperV83Config が entry/exit/risk 全文比較で強制する。
+#
+# strategy ブロック (exhaustion_fade / allowed_hours_jst) は runtime では発火しない:
+# bot_config.llm_decision.exclude_hours_jst[USD_JPY] = [] のとき EngineOwnedHoursJST が空 =
+# per-tick engine は USD_JPY を 1 時間も持たない (LLM ループが 24h 管理)。
+# この行が担うのは (a) positions の FK 先 (b) admission が読む entry.max_spread_pips / risk.* の 2 点。
+# seed(--mode の既定は paper_config):
+#   bash scripts/seed_active_config.sh [--apply] configs/paper_v83_USD_JPY.yaml
+config_id: "paper-v83-usdjpy"
+generated_at: "2026-07-27T11:00:00+09:00"
+valid_from: "2026-07-26T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: USD_JPY
+enabled: true
+
+market_regime:
+  type: "volatile"
+  confidence: 0.50
+  reason: "v8.3 paper gate seed; エントリー判断は LLM ループ (playbook v8.3) が 24h 担当"
+
+strategy:
+  name: "exhaustion_fade"
+
+entry:
+  # スプレッド床はコード側のガードと同じ 3.0(早朝でも spread<3.0 なら試す)。
+  max_spread_pips: 3.0
+  require_breakout: false
+  direction: "both"
+  allowed_hours_jst: [4, 10, 11]
+
+exit:
+  exit_policy: strategy_computed
+  take_profit_pips: 10.0
+  stop_loss_pips: 100.0
+  max_hold_minutes: 60
+  extension_max_minutes: 0
+  extension_unrealized_pips_threshold: 0.0
+  early_exit_window_minutes: 0
+  early_exit_target_pips: 0.0
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  # window kill-switch 無効(0 = ゲート無効)。
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

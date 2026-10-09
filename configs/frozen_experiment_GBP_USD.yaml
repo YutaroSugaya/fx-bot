@@ -1,0 +1,54 @@
+# frozen-mompull (GBP_USD) — momentum_pullback 固定 active config(凍結実験)
+# ------------------------------------------------------------------
+# USD_JPY 版と完全に同一設計 (同じ「1個の戦略」を複数通貨に適用)。詳細は
+# configs/frozen_experiment_USD_JPY.yaml のヘッダコメント参照。
+# per-symbol cap=1 なので各通貨 1 個ずつまで(全体の同時保有数は account cap が縛る)。
+# 注: GBP_USD は USD-quote ペア。pip は 0.0001 (JPY ペアの 0.01 と別) だが
+# TP/SL/ratchet は pip 単位なので JPY ペアと等価。損益の JPY 換算は
+# market.QuoteJPYRate (USD 建て損益 × USD/JPY) が処理する。
+# 起動時検証(TTL)を通らないため backtest 用の参照 config(USD_JPY 版の注を参照)。
+config_id: "frozen-mompull-gbpusd-v1"
+generated_at: "2026-06-09T00:00:00+09:00"
+valid_from: "2026-06-04T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: GBP_USD
+enabled: true
+
+market_regime:
+  type: "unclear"
+  confidence: 0.70
+  reason: "frozen manual config (experiment v1); side は実行時トレンドで決定"
+
+strategy:
+  name: "momentum_pullback"
+  timeframe: "5m"
+  trend_timeframe: "1h"
+
+entry:
+  max_spread_pips: 1.0
+  min_volatility_pips_5m: 1.5
+  max_volatility_pips_5m: 6.0
+  require_breakout: false
+  direction: "both"
+
+exit:
+  take_profit_pips: 12.0
+  stop_loss_pips: 6.0
+  max_hold_minutes: 90
+  extension_max_minutes: 30
+  extension_unrealized_pips_threshold: 4.0
+  early_exit_window_minutes: 15
+  early_exit_target_pips: -3.0
+  ratchet_arm_pips: 8.0
+  ratchet_giveback_pips: 2.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

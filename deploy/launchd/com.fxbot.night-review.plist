@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- fxbot 夜間 read-only 定点観測レポート。
+     毎日 04:30 JST (db-backup 03:00 の後) に night-review-cron.sh を実行し、
+     ~/.fxbot/reports/night_review_YYYY-MM-DD.md を生成する。DB 書込なし。 -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fxbot.night-review</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/USERNAME/.fxbot/night-review-cron.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/USERNAME/.fxbot/logs/launchd-night-review.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/USERNAME/.fxbot/logs/launchd-night-review.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>FXBOT_REPO</key>
+    <string>/Users/USERNAME/Desktop/fx-bot</string>
+  </dict>
+</dict>
+</plist>

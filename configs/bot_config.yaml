@@ -1,0 +1,80 @@
+# bot_config.yaml — non-secret bot settings.
+# Secrets (API keys, DB password) come from environment variables (.env).
+#
+# このファイルは git tracked。安全側の既定で commit する:
+#   - `mode` は常に `paper_config`(live は configs/bot_config.live.yaml・gitignore)
+#   - LLM(claude CLI)を定期的に呼ぶ経路(ai_advisor / advisor_v2 / llm_decision)は全部 off
+# どちらも backend/internal/config/tracked_bot_config_test.go が固定している。
+#
+# Live を走らせるときは:
+#   1. configs/bot_config.live.example.yaml をコピーして configs/bot_config.live.yaml を作る
+#   2. `BOT_CONFIG_PATH=../configs/bot_config.live.yaml make start`(パスは backend/ からの相対)
+bot:
+  mode: paper_config        # disabled | paper_config | live_config
+  timezone: Asia/Tokyo
+
+symbols:
+  - USD_JPY
+  - EUR_JPY
+  - GBP_JPY
+  # JPY quote のみ追加可。追加するときは configs/hard_limits.yaml の allowed_symbols にも
+  # 足すこと(起動時に fail-close で検査する)。
+
+# advisor: claude CLI が一定間隔で戦略 config(YAML)を生成し、bot がスキーマと hard_limits で
+# 検証してから使う。有効にすると interval_minutes ごとに claude を呼ぶ(利用料・利用枠を消費する)。
+ai_advisor:
+  enabled: false
+  provider: claude_cli
+  interval_minutes: 30
+  weekdays_only: true
+  # 応答がこの秒数を超えたらハング扱いで打ち切る。
+  claude_cli_timeout_seconds: 300
+  config_ttl_minutes: 60
+  prompt_path: prompts/generate_strategy_config.md
+  input_path: runtime/ai_input/latest_summary.json
+  output_path: configs/strategy_config.next.yaml
+
+# advisor v2(日足のチャートブレイク検出): 決定論の検出器が候補を出し、breakout-advisor
+# subagent が go/no-go を判定する。サイズ・TP/SL・risk Gate・broker OCO は決定論のまま。
+advisor_v2:
+  enabled: false
+  exclusive: false       # true(+enabled)で固定戦略の入口を止め、v2 を唯一のエントリー源にする
+  deterministic: false   # true で LLM 判定を外し、検出器の合致だけで建てる(守りは risk Gate)
+  quantity: 0            # 0 = hard_limits.quantity.min
+  max_spread_pips: 0     # 0 = cap 無し。>0 でスプレッド拡大帯を見送り、次のサイクルで再評価
+  interval_minutes: 60   # 0 = 1 時間
+  symbols: []            # 空 = 全シンボル。例 [USD_JPY]
+  max_concurrent: 1      # 同一通貨・同方向の同時建玉上限。1 = ナンピン禁止
+
+risk:
+  # per-symbol cap
+  # 当日の実現損失がこの額(円)に達したら、そのシンボルの新規を止める。
+  max_daily_loss_jpy: 2000
+  # 当日この回数連敗したら、そのシンボルの新規を止める(3 連敗で 30 分 freeze も入る。
+  # backend/internal/domain/risk/gate.go)。
+  max_consecutive_losses: 4
+  max_open_positions: 1
+  # account-wide cap。0 = 無効。symbols が 2 個以上なら設定する。
+  account_max_open_positions: 3
+  account_max_daily_loss_jpy: 18000
+
+gmo:
+  public_base_url: https://forex-api.coin.z.com/public
+  private_base_url: https://forex-api.coin.z.com/private
+  private_get_limit_per_sec: 6
+  private_post_limit_per_sec: 1
+
+orders:
+  # 現在この 2 項目はコードから読まれていない(parse されるだけ)。live の新規は常に
+  # 成行(MARKET)で建て、約定後に broker 側 OCO(TP/SL)を置く。
+  prefer_order_type: MARKET_THEN_OCO  # not read (reserved)
+  fallback_order_type: ""             # reserved
+
+
+scheduler:
+  # When false, advisor fires on every interval_minutes regardless of weekday.
+  weekdays_only: true
+  start_day: MONDAY
+  start_time: "07:00"
+  end_day: SATURDAY
+  end_time: "06:00"

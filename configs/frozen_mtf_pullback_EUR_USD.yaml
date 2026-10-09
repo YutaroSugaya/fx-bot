@@ -1,0 +1,66 @@
+# frozen-mtfpb (EUR_USD) — MTF pullback 固定 active config(凍結実験)
+# ------------------------------------------------------------------
+# momentum_pullback 固定 config (frozen_experiment_*) から「入口の選別」を作り直した
+# MTF 順張りスキャル (1玉版)。公開されている裁量手法をルール化したもの。
+#
+# 入口 = 1h トレンド方向 × 5m が逆 (押し目) × 5m の「壁」(3回反発トレンドライン) を
+#        1m が 2回目にブレイクした瞬間 (1回目スルー)。
+# 出口 = 構造的 (建値時点でラインから算出): TP1=1mライン or ~20pips / SL=5m壁ブレイク基準
+#        (SL_max=12 で clip)、ratchet は使わない。2玉・ミドルライン利確はこの版では扱わない。
+#
+# 有効化 = DB strategy_configs(status='active')に seed する:
+#   bash scripts/seed_active_config.sh [--apply] [--mode paper_config|live_config] configs/frozen_mtf_pullback_EUR_USD.yaml
+config_id: "frozen-mtfpb-eurusd-v2"
+generated_at: "2026-06-08T12:00:00+09:00"
+valid_from: "2026-06-08T00:00:00Z"
+# 遠未来 = TTL 失効しない (engine/gate の expired 判定を恒久パス)。
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: EUR_USD
+enabled: true
+
+market_regime:
+  # direction=both なので regime は方向を縛らない (実行時の 1h トレンドが side を決める)。
+  type: "unclear"
+  confidence: 0.70
+  reason: "frozen manual config (experiment v2 / mtf_pullback); side は 1h トレンドで決定"
+
+strategy:
+  name: "mtf_pullback"
+
+entry:
+  # spread > 1.0pip は no_trade (spread 拡大時は no_trade)。
+  max_spread_pips: 1.0
+  # mtf_pullback の「ブレイク」は戦略内の 5m 壁トリガー。config の require_breakout
+  # (breakout_follow 用) とは別物なので必ず false。
+  require_breakout: false
+  direction: "both"
+
+exit:
+  # v2: TP/SL は戦略が建値時点で構造的に算出する (TP1=1mライン or ~20pips / SL=5m壁の
+  # ブレイク基準, mtf_pullback.go)。下の take_profit_pips/stop_loss_pips は戦略には
+  # 使われず (Signal で上書き)、validator 通過 + (advisor時の) dead-market guard 用の
+  # 代表値として残す。構造的 TP は ~20pip / SL は 12pip で clip される。
+  # MaxHold/extension/early_exit は引き続き config から適用。
+  take_profit_pips: 12.0
+  stop_loss_pips: 6.0
+  max_hold_minutes: 90
+  extension_max_minutes: 30
+  extension_unrealized_pips_threshold: 4.0
+  early_exit_window_minutes: 15
+  early_exit_target_pips: -3.0
+  # ratchet は使わない (元の公開されている裁量手法に無く、構造的 TP を主出口にする)。
+  # 0/0 = OFF。戦略も Signal で 0 を詰める。
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  # 0 = 無制限窓 (固定 config は窓が永続)。ブレーキは日次 loss cap。
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

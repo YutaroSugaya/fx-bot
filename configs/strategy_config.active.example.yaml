@@ -1,0 +1,65 @@
+# Example active strategy config (scalp-leaning momentum_pullback).
+# This is a sample for reference only (its valid_until is in the past, so it never trades).
+# The bot reads its active config from the DB (strategy_configs) at startup — seed one with
+# scripts/seed_active_config.sh. When ai_advisor is enabled, Claude also writes the
+# promoted config to configs/strategy_config.active.yaml (gitignored).
+config_id: "20260515-100000-usdjpy"
+generated_at: "2026-05-15T10:00:00+09:00"
+valid_from: "2026-05-15T10:00:00+09:00"
+valid_until: "2026-05-15T11:00:00+09:00"
+
+symbol: USD_JPY
+enabled: true
+
+market_regime:
+  type: "trend_up"
+  confidence: 0.62
+  reason: "6h/24h ともに上昇トレンドが継続、1h で押し目形成中"
+
+strategy:
+  name: "momentum_pullback"
+  timeframe: "5m"
+  trend_timeframe: "1h"
+
+entry:
+  max_spread_pips: 0.5
+  min_volatility_pips_5m: 1.5
+  max_volatility_pips_5m: 6.0
+  require_breakout: false
+  direction: "buy_only"
+  # 時間帯フィルタ (JST hour 0-23 の whitelist)。空 or 省略 = 全時間帯許可。
+  # 下の値は書式の例。短期間の backtest で見える時間帯別の優劣は、同時建玉上限による
+  # 選別バイアスで反転しやすい (prompts/skills/02_strategy_selection.md)。
+  allowed_hours_jst: [0, 2, 4, 8, 17, 18, 19, 20, 22]
+
+exit:
+  # スキャ baseline: TP 12 / SL 8 / MaxHold 60。
+  # momentum_pullback の TP/SL は hard_limits.yaml の strategy_limits の範囲に制限される。
+  take_profit_pips: 12.0
+  stop_loss_pips: 8.0
+  max_hold_minutes: 60
+  # MaxHold extension: 60 分経過時にまだ横ばい (|unrealized| ≤ threshold) なら
+  # +30 分まで待つ。range な市況で強制クローズして spread + slip で確定マイナスに
+  # なるのを防ぐ。両方 0 で従来挙動 (= MaxHold で必ず close)。
+  extension_max_minutes: 30
+  extension_unrealized_pips_threshold: 3.0
+  # early_exit は enabled config で必須。
+  # MaxHold 強制 close 直前で「マイナスが浅い瞬間」を捕まえて損失緩和。window ≤ max_hold。
+  early_exit_window_minutes: 15
+  early_exit_target_pips: -2.0
+  # ratchet (trailing TP) は enabled config で必須。
+  # peak が arm に達して以降、giveback だけ戻ったら確定で利確 (取り逃し減)。
+  # RR floor: locked = arm-giveback ≥ TP×0.5 (=6) 必須。逆RR防止のため
+  # arm は TP の 0.6〜0.7×、giveback は arm の 15〜25% に置く (TP12 → arm8/give2 → locked6)。
+  ratchet_arm_pips: 8.0
+  ratchet_giveback_pips: 2.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 4
+  max_loss_in_this_window_jpy: 1000
+
+no_trade:
+  enabled: false
+  reason: ""

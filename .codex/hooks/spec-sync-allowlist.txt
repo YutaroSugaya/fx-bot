@@ -1,0 +1,23 @@
+# Allowlist for docs-sync-check.sh — paths matching these patterns are
+# excluded from the "code change requires docs update" check.
+#
+# Format: one regex per line (extended grep). Lines starting with '#'
+# and blank lines are ignored. Patterns match the changed file path
+# relative to the project root.
+#
+# Use this for *spec-non-changing* edits where the file is on the
+# trigger list but the change is purely cosmetic / observability:
+#   - typo fixes in comments
+#   - log message text changes (no field rename)
+#   - test-only changes (test files already excluded by name pattern)
+#   - import reordering / gofmt
+#
+# DO NOT add a path here just to skip the check on a real spec change —
+# update the docs instead. This file is for back-stop, not bypass.
+
+# test files are auto-excluded (the hook's trigger rules skip *_test.go),
+# but explicit examples kept here for documentation:
+# _test\.go$
+
+# example: comment-only sweep through safety package (no API change)
+# ^backend/internal/safety/.*\.go$ # if PR title contains "doc-only"

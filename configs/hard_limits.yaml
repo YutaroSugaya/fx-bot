@@ -1,0 +1,158 @@
+# Hard limits enforced by Go side. Claude-generated configs MUST stay within these.
+#
+# 人間が commit で決める上限。LLM が出す config / 判断はこの範囲の外に出られない
+# (validator が reject し、発注境界では command.ValidateSignalBoundaries が実 Signal 値を検査する)。
+# hard_limits は起動時にだけ読む。変えたら bot を再起動する。
+#
+# 注: strategy_limits に該当戦略のエントリーがある場合は、その TP/SL レンジが
+# 下記グローバルの take_profit_pips / stop_loss_pips を override する。
+# エントリーが無い戦略はグローバル値にフォールバックする。
+hard_limits:
+  # bot_config の symbols はこの部分集合でなければ起動しない(fail-close)。
+  allowed_symbols:
+    - USD_JPY
+    - EUR_JPY
+    - GBP_JPY
+    - EUR_USD
+    - GBP_USD
+
+  # GMO 外為 FX (USD_JPY) の 1 lot = 10,000 通貨 (公式)。
+  # /v1/symbols.minOpenOrderSize は理論上 100 通貨だが、bot の発注経路(MARKET + OCO)で
+  # 確かめたのは 1,000 通貨(= 0.1 lot)まで。auto-trade もそこから始めるため min=1000。
+  # max=100,000 = 10 lot。
+  # 最大損失の目安: SL 30pips × 100,000通貨 × 0.01円 = 30,000円 / 1,000通貨なら 300円。
+  quantity:
+    min: 1000
+    max: 100000
+
+  # グローバル TP レンジ。(a) strategy_config validator のフォールバックと、(b) build_market_summary が
+  # LLM に「選べる TP 範囲」として見せる値を兼ねる。min は往復コスト床(≈1.1pips)に負ける薄利を
+  # 構造的に禁止する値、max は数十 pips の値幅を取りに行くデイトレ域。
+  # ⚠️ これは LLM への提示上限で、1 トレードの最悪損失は下の order_boundary
+  # (SL sanity ≤50 / per-trade ≤¥8000)と日次・per-trade cap が縛る。
+  take_profit_pips:
+    min: 16.0
+    max: 100.0
+
+  # グローバル SL レンジ。デイトレは押し / 戻りに耐える構造 SL(数十 pips)。
+  # max 45 は order_boundary.max_stop_loss_pips=50 の内側に収める(カタストロフ網は弛めない)。
+  stop_loss_pips:
+    min: 10.0
+    max: 45.0
+
+  # 保有時間の許容上限。trend 追随系(トレンド 1 波を ratchet で伸ばす)は数日〜数週間の保有が
+  # 機構の本質なので ceiling は 30 日。⚠️ 延びるのは保有"時間"だけで、1 トレードの最悪損失は
+  # broker OCO の構造的 SL と per-trade ≤¥8,000 ガードで限定されたまま。
+  max_hold_minutes:
+    min: 30
+    max: 43200
+
+  max_trades_in_this_window:
+    min: 0
+    max: 5
+
+  max_loss_in_this_window_jpy:
+    min: 0
+    max: 5000
+
+  # 新規エントリーを許すスプレッドの絶対上限(entry gate が使う)。デイトレの TP30 なら
+  # spread 3.0 はコストの 1 割で許容圏。東京早朝などの異常拡大(~10pips)は弾く。
+  # 相対ガード(spread > avg×2 → no_trade・market.IsSpreadSpike)は advisor サイクルでのみ
+  # 呼ばれるので、advisor off のときの実防御はこの絶対 cap。
+  max_spread_pips:
+    min: 0.3
+    max: 3.0
+
+  # Claude advisor cadence (60min auto / 15-59min event) と整合させた TTL 範囲。
+  # TTL 60 は auto fire とぴったり同期、90 は 30 分のオーバーラップで安全側。
+  config_ttl_minutes:
+    min: 60
+    max: 120
+
+  # 発注境界での実 Signal 値検査の安全網。validator は config の placeholder TP/SL しか見ないが、
+  # strategy が emit する実 TP/SL/MaxHold/qty はここで検査する (command.ValidateSignalBoundaries)。
+  #   max_loss_per_trade_jpy: SL_pips × pipSize × qty × quote→JPY がこれを超える発注を reject。
+  #     qty1000 (SL20 で 200-300円) は余裕で通り、qty10000 (SL20=2000円) も通る。
+  #     100 倍の qty 誤発注 (100000 で 20000円) は弾く = qty スケール時の最悪損失を機械的に縛る。
+  #   max_stop_loss_pips / max_take_profit_pips: decimal typo / 異常値の GLOBAL sanity cap。
+  #     intraday 想定で TIGHT に保つ。日足 signature_breakout のような広い SL/TP は
+  #     下の strategy_order_boundary で個別に緩める (グローバル網は弛めない)。
+  order_boundary:
+    max_loss_per_trade_jpy: 8000
+    max_stop_loss_pips: 50
+    max_take_profit_pips: 120
+
+  # 戦略別の発注境界 override。グローバルを弛めず、日足 signature_breakout だけ広い sanity cap を持たせる。
+  # SL 200 は fat-finger (600pips typo 等) を弾きつつ日足の構造 SL(60-150)を通す。
+  # TP 1500 は measured-move(通常 ~700)を通す(TP は利確目標で損失統制ではない)。
+  strategy_order_boundary:
+    signature_breakout:
+      max_loss_per_trade_jpy: 20000   # ¥100/pip(10,000 通貨)× SL200 まで。グローバル order_boundary(8000)は据え置き
+      max_stop_loss_pips: 200
+      max_take_profit_pips: 1500
+
+  # 戦略別 TP/SL レンジ。Claude には自由に TP を指定させず、戦略に応じた
+  # 妥当な範囲内でしか選べないようにする。デイトレへ寄せる駆動は playbook / プロンプトが担い、
+  # 破滅ガードは order_boundary(SL≤50)が担う二段構え。
+  # - momentum_pullback      : 押し目 → TP 8-80 / SL 6-40
+  # - breakout_follow        : ブレイク追随 → TP 12-100 / SL 8-45
+  # - range_breakout_probe   : レンジ上下限の試し → TP 8-50 / SL 6-30
+  # いずれも SL≤45 で order_boundary(SL≤50)の内側。
+  strategy_limits:
+    momentum_pullback:
+      take_profit_pips:
+        min: 8.0
+        max: 80.0
+      stop_loss_pips:
+        min: 6.0
+        max: 40.0
+
+    breakout_follow:
+      take_profit_pips:
+        min: 12.0
+        max: 100.0
+      stop_loss_pips:
+        min: 8.0
+        max: 45.0
+    range_breakout_probe:
+      take_profit_pips:
+        min: 8.0
+        max: 50.0
+      stop_loss_pips:
+        min: 6.0
+        max: 30.0
+    # ma_pullback(デイトレ runner): runtime 出口は戦略が定数で算出する (Signal で
+    # 上書き) — TP=構造的 backstop 30-80 / SL=構造的 8-20 / 主出口は trailing ratchet
+    # (arm16/give8) / 時間 stop 480 分 (ma_pullback.go)。下の range は config の「建値時点の
+    # 代表 placeholder」(validator + dead-market guard 用) が収まる範囲で、runtime には
+    # 使われない。representative は TP14/SL10 を置くので 6-20 / 4-15 のままで足りる。
+    ma_pullback:
+      take_profit_pips:
+        min: 6.0
+        max: 20.0
+      stop_loss_pips:
+        min: 4.0
+        max: 15.0
+
+  # Paper モードのみで適用するシミュレーション cost。Live では無視される。
+  # 目的: Live と Paper の PnL 乖離を縮める。
+  #   - スプレッドは PaperBroker が実 ticker の ask/bid で建値 / 決済するため常時実費計上。
+  #   - 手数料は close saga が 0.002%/片道 の往復を trades.fee_jpy へ推定計上
+  #     (composePaperCloseCosts・fee_estimated=true)。net の集計式は Live と共通。
+  paper:
+    # 実約定のスリッページは中央値がほぼ 0 だったので 0.0。往復 1pips 級の架空コストを載せると
+    # コスト床付近の net を測れなくなる。逆行のテールは実 spread の変動が既に運ぶ。
+    simulated_slippage_pips: 0.0    # adverse fill: BUY=ask+slip / SELL=bid-slip
+    # ⚠️ GMO 外為 API は手数料無料ではない: 約定金額 × 0.002% × 往復 ≈ 7.5円(1,000通貨)。
+    # 手数料の計上は close saga の composePaperCloseCosts (0.002%/leg 推定) が担う。
+    # この値は PaperBroker 内部 PnL 専用の旧 hook で、record 経路 (close saga が
+    # entry/exit 価格から PnL 再計算) には届かない = 0.0 のまま (二重計上防止)。
+    api_fee_jpy_per_trade: 0.0
+
+  # 決済直後の連打防止。risk.Gate が reject する(0 = 無効)。
+  # 機械的な固定戦略では決済直後の signal は revenge ではなく単に「次の signal」なので 0 で全部拾う。
+  # max_open_positions=1 が同時持ちを防ぐ。裁量に近い経路で使うなら 60 / 300 / 120 程度にする。
+  cooldown:
+    after_entry_seconds: 0
+    after_loss_seconds: 0
+    after_take_profit_seconds: 0

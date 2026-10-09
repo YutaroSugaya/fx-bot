@@ -1,0 +1,34 @@
+version: "2"
+
+# sqlc generates type-safe Go bindings from the .sql files under queries/
+# using migrations/ as the schema source of truth. Regenerate with
+# `make sqlc-generate` (or directly: `cd backend && sqlc generate`).
+#
+# Convention:
+#   - queries/<table>.sql holds the named queries for one table family.
+#     File name does not affect generated code — sqlc reads every .sql.
+#   - All generated code lands in internal/adapter/repository/dbgen.
+#     The repository layer (internal/adapter/repository/*.go) wraps the
+#     generated functions so usecase still talks to port interfaces.
+
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: internal/adapter/repository/queries
+    gen:
+      go:
+        package: dbgen
+        out: internal/adapter/repository/dbgen
+        sql_package: pgx/v5
+        emit_json_tags: false
+        emit_prepared_queries: false
+        emit_interface: false
+        emit_exact_table_names: false
+        emit_pointers_for_null_types: true
+        # Map jsonb columns to []byte (which is what the port types
+        # already use) so wrappers don't have to convert from pgtype.
+        overrides:
+          - db_type: jsonb
+            go_type:
+              type: byte
+              slice: true

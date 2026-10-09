@@ -1,0 +1,73 @@
+# frozen-mapb (EUR_USD) — 200MA pullback デイトレ runner 固定 active config(凍結実験)
+# ------------------------------------------------------------------
+# ma_pullback の scalp 版 (v3) を「デイトレ runner」へ retune した版。config_id を v3-1 に分け、
+# scalp 版の計測と混ぜず N を 0 から測る。戦略コードは共通 (ma_pullback) で出口だけ runner 化。
+# 公開手法の調査からの逆算。
+# EUR_USD (pip=0.0001) は ma_pullback が market.PipSize で pip 建てを正しく扱うので JPY と同一ロジック。
+#
+# 入口 = MTF。トレンド方向は 1H 200SMA の傾き (大局は上位足)、執行 (押し目/節目/反発) は
+#        5m。価格が 5m 200MA ゾーンに戻り (k×ATR 内)、直近スイング S/R・当日高安と重なり (厳選)、
+#        最後の 5m 足が順方向に確定 (反発確認) した所で順張り。
+# 出口 = デイトレ runner (戦略 ma_pullback.go が定数で算出 → 既存 Signal 経路、出口エンジン無改造):
+#        主出口 = trailing ratchet (arm16/give8: 含み益 +16 で武装→ピークから 8 戻しで決済=勝ちを伸ばす)。
+#        TP = 次の高安の密集地帯 far edge (構造的 backstop 30-80, ratchet arm より上で先取りしない)。
+#        SL = 守る 5m MA のブレイク基準 (構造的 8-20)。時間stop = 480 分 (塩漬け回収)。
+#        ↑ scalp 版 (TP cap20 / ratchet 無 / 時間stop 無) からの意図的な runner 化。
+#
+# 5m 200MA は起動時の 24h 復元 (288本バッファ) で満たされるので 1h バッファ追加は不要。
+# 有効化 = DB strategy_configs(status='active')に seed する:
+#   bash scripts/seed_active_config.sh [--apply] [--mode paper_config|live_config] configs/frozen_ma_pullback_EUR_USD.yaml
+config_id: "frozen-mapb-eurusd-v3-1"
+generated_at: "2026-06-10T12:00:00+09:00"
+valid_from: "2026-06-08T00:00:00Z"
+# 遠未来 = TTL 失効しない (engine/gate の expired 判定を恒久パス)。
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: EUR_USD
+enabled: true
+
+market_regime:
+  # direction=both なので regime は方向を縛らない (実行時の 5m 200MA トレンドが side を決める)。
+  type: "unclear"
+  confidence: 0.70
+  reason: "frozen manual config (experiment v3.1 runner / ma_pullback); side は 5m 200MA トレンドで決定"
+
+strategy:
+  name: "ma_pullback"
+
+entry:
+  # spread > 1.0pip は no_trade (東京早朝の ~10pip 拡大はここで自動回避)。
+  max_spread_pips: 1.0
+  # ma_pullback は「MA ゾーンへの戻り＋反発」で入る反発型。config の require_breakout
+  # (breakout_follow 用) とは無関係なので必ず false。
+  require_breakout: false
+  direction: "both"
+
+exit:
+  # v3.1 (デイトレ runner): runtime 出口は戦略 (ma_pullback.go) が定数で算出する:
+  #   主出口 = trailing ratchet (arm16/give8) / TP = 構造的 backstop 30-80 / SL = 構造的 8-20 /
+  #   時間stop = 480 分。ratchet と max_hold は下で戦略定数と一致させ、live 監査行を正直に。
+  #   take_profit_pips / stop_loss_pips は validator + dead-market guard 用の代表 placeholder で
+  #   runtime には使われない (Signal で上書き; TP は RR-floor locked=arm-give=8 ≥ TP×0.5 を通す 14)。
+  exit_policy: strategy_computed
+  take_profit_pips: 14.0
+  stop_loss_pips: 10.0
+  max_hold_minutes: 480
+  extension_max_minutes: 0
+  extension_unrealized_pips_threshold: 0.0
+  early_exit_window_minutes: 0
+  early_exit_target_pips: 0.0
+  # trailing ratchet = v3.1 runner の主出口 (戦略定数 arm16/give8 と一致)。
+  ratchet_arm_pips: 16.0
+  ratchet_giveback_pips: 8.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  # 0 = 無制限窓 (固定 config は窓が永続)。ブレーキは日次 loss cap。
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

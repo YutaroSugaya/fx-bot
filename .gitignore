@@ -1,0 +1,93 @@
+# ===== Secrets / Env =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+
+# ===== Generated configs (Claude output, runtime state) =====
+configs/strategy_config.active.yaml
+configs/strategy_config.next.yaml
+configs/strategy_config.active_*.yaml
+configs/strategy_config.next_*.yaml
+
+# ===== Live mode override =====
+# tracked configs/bot_config.yaml は常に paper_config 固定。Live を走らせる
+# ときは configs/bot_config.live.example.yaml をコピーしてここに作り、
+# BOT_CONFIG_PATH 経由で参照する。git にコミットしてはいけない。
+configs/bot_config.live.yaml
+
+# ===== Runtime artefacts =====
+runtime/ai_input/
+runtime/ai_output/
+runtime/logs/
+runtime/emergency_stop.flag
+runtime/advisor_v2_status.json
+runtime/llm_decision_status.json
+runtime/playbook_*.jsonl
+
+# ===== Go =====
+backend/vendor/
+backend/bin/
+backend/*.test
+backend/coverage.out
+# `go build` で backend/ 直下に吐かれる Mach-O / ELF バイナリ
+backend/bot
+backend/backtest
+backend/fetch-candles
+
+# ===== Build & process tracking (make build / make start) =====
+bin/
+.run/
+
+# ===== Node / Next.js =====
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/tsconfig.tsbuildinfo
+
+# ===== DB local volumes =====
+.docker-data/
+
+# ===== offline backtest data (HistData M1 — reproducible via scripts/fetch_histdata.sh) =====
+data/
+# stray go build artefacts (cmd binaries built into backend/)
+backend/histdata-ingest
+
+# ===== DB backups / local DB files (誤 commit 防止。scripts/db-backup.sh の既定出力先は ~/.fxbot/backups) =====
+backups/
+*.sqlite
+*.sqlite3
+*.db
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Python (scripts/*.py) =====
+__pycache__/
+*.pyc
+
+# ===== Editor =====
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ===== Claude Code per-machine settings =====
+# settings.json (project-shared permissions) はコミットしてよい。
+# settings.local.json は端末ローカルの DB URL 等が入るので除外。
+.claude/settings.local.json
+# settings.json 編集時の自動バックアップ (ローカル一時ファイル)
+.claude/settings.json.bak
+.playwright-mcp/
+
+# ===== Local-only files (作業メモ・端末ごとの設定) =====
+private/
+CLAUDE.local.md
+.codex/hooks.json

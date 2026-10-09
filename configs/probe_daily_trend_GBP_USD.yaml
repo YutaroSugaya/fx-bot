@@ -1,0 +1,20 @@
+# daily_trend probe — rules pre-registered before the run. backtest-only (NOT a live seed).
+# 日足 200SMA傾き + Donchian-55 + 3×ATR stop + ratchet。交絡無しの GBP_USD。-replay-tf 1d で実行。
+config_id: "probe-daily-gbp-usd"
+generated_at: "2026-06-15T00:00:00+09:00"
+valid_from: "2014-01-01T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+symbol: GBP_USD
+enabled: true
+market_regime: { type: "unclear", confidence: 0.70, reason: "daily_trend probe: 両方向・regime非依存" }
+strategy: { name: "daily_trend" }
+entry: { max_spread_pips: 10.0, require_breakout: false, direction: "both" }
+exit:
+  exit_policy: strategy_computed
+  take_profit_pips: 1000.0
+  stop_loss_pips: 100.0
+  max_hold_minutes: 480
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+risk: { quantity: 1000, max_open_positions: 1, max_trades_in_this_window: 0, max_loss_in_this_window_jpy: 0 }
+no_trade: { enabled: false, reason: "" }

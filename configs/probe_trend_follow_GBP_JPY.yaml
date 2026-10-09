@@ -1,0 +1,43 @@
+# trend_follow probe — multi-regime calibration config (GBP_JPY)
+# 1h 200SMA trend + Donchian-48 continuation entry, ATR ratchet exit (strategy-computed).
+# valid_from=2014 so cmd/backtest runs it over 2015-2023. backtest-only; NOT a live seed.
+config_id: "probe-trend-gbp-jpy"
+generated_at: "2026-06-14T00:00:00+09:00"
+valid_from: "2014-01-01T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: GBP_JPY
+enabled: true
+
+market_regime:
+  type: "unclear"
+  confidence: 0.70
+  reason: "trend_follow probe: side は 1h トレンド方向 (both)。regime は縛らない"
+
+strategy:
+  name: "trend_follow"
+
+entry:
+  max_spread_pips: 10.0
+  require_breakout: false
+  direction: "both"
+
+exit:
+  # 出口は trend_follow.go が算出 (SL=2×ATR1h / TP off / ratchet=3×&1.5×ATR1h / MaxHold 30d)。
+  # 下の値は validator placeholder (strategy_computed が上書き)。
+  exit_policy: strategy_computed
+  take_profit_pips: 100.0
+  stop_loss_pips: 30.0
+  max_hold_minutes: 480
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

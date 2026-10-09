@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# pre-push: push 前に make check-backend + secret scan を回す。
+# Stop hook は ESC 中断/強制終了で発火しないので、push 境界でもう一段ゲートする。
+#
+# インストール (core.hooksPath 方式 — clone 直後の手動 cp 依存を排除):
+#   git config core.hooksPath .githooks
+# これで .githooks/ 配下の pre-commit / pre-push が自動で有効になる。
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+# VSCode 等の GUI から push すると、zsh ログインシェルを経由せず最小 PATH で
+# フックが起動し /opt/homebrew/bin(Homebrew の go)が PATH から抜ける。
+# 結果 `go: command not found` → make test が Error 127 で push が落ちる。
+# Homebrew(arm/intel) と Go 既定インストール先を前置して go/make を解決する。
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/local/go/bin:${HOME}/go/bin:${PATH}"
+
+echo "==> pre-push: secret scan"
+bash scripts/secret-scan.sh
+
+echo "==> pre-push: make check-backend (build + vet + test, non-integration)"
+make check-backend
+
+echo "==> pre-push: OK"

@@ -1,0 +1,110 @@
+# Economic Event Calendar — 経済指標の発表前後の entry freeze / breakout 窓
+#
+# 経済指標の発表前後の窓を手書きで管理する。発表日時は BLS / Fed / BOJ / BOE / ONS / Census 等の
+# 公式スケジュールから取ること。この bot は日程を自動取得しないので、利用者が自分で
+# (月 1 回程度)更新する必要がある。下の events は記入例を兼ねる。
+# Bot 起動時にロードされ、Worker / EntryAdmission の snapshot が現在時刻で
+# InFreezeWindow を問い合わせて InEventFreeze flag に反映する。
+# また advisor 向け MarketSummary に event_context (name/policy/minutes_until/
+# in_window) として渡され、Claude が仕込み/cadence 短縮を判断する材料になる。
+#
+# policy:
+#   freeze   … 窓内は entry 禁止 (守り)。risk.Gate が "event_freeze" で reject
+#              (emergency_stop と同列の hard gate、operator override 不可)。未指定= freeze。
+#   breakout … 窓内でも freeze せず「攻める」。advisor が breakout_follow を arm し
+#              (require_breakout=true / 短時間 TP/SL / 10分 recheck)、
+#              発表後の初動ブレイクに乗る。方向は事前に賭けず動いた方を取る。
+#
+# ファイル不在は空 calendar (= freeze 無効) で起動するので、まずは
+# このサンプルを必要に応じて編集する。
+#
+# 各 event:
+#   name:         識別名 (ログに出る)
+#   at:           発表時刻 (ISO8601 UTC, "Z" suffix 必須)
+#   pre_minutes:  発表前 窓
+#   post_minutes: 発表後 窓
+#   policy:       freeze | breakout (省略= freeze)
+#
+# 一般的な目安 (推奨):
+#   守りたい指標 (CPI 等で方向不明・荒れやすい): policy=freeze, pre=30 / post=30
+#   攻めたい指標 (トレンドが出やすい雇用統計等): policy=breakout, pre=30 / post=60
+#
+# 過去の発表時刻 (= at が現在より前) も書きっぱなしで問題ない (= 窓を過ぎたら
+# 単に InFreezeWindow / event_context が反応しなくなるだけ)。
+
+events:
+  # 米雇用統計 (NFP): 毎月第1金曜 08:30 ET。2026-06-05(金)=第1金曜。
+  # 08:30 EDT = 12:30 UTC = 21:30 JST。トレンドが出やすいので攻め(breakout)。
+  - name: "US NFP 2026-06"
+    at: "2026-06-05T12:30:00Z" # = 21:30 JST、pre30→21:00 / post60→22:30
+    pre_minutes: 30
+    post_minutes: 60
+    policy: breakout
+
+  # 以下は全て policy: freeze。advisor 停止中 (ai_advisor.enabled=false) は breakout
+  # policy だと「freeze しない」だけで攻め側の仕込みは誰も行わない = 実質無防備なので、
+  # advisor / breakout 戦略を動かしていないときは freeze にしておく。
+  #
+  # 注意: freeze は「新規エントリーの禁止」のみで、窓より前に建った既存ポジは守らない。
+  # 発表直後の急変では broker OCO の SL もスリッページで設定値より不利に約定し得る
+  # (SL は約定価格の保証ではない)。発表を跨ぐ保有をブロックする仕組みは無い。
+  #
+  # 窓の設計: 下の例は全て pre5/post5 = 発表の瞬間の新規エントリーだけ止める最小構成。
+  # 荒れの実防御はカレンダーではなく spread ゲート (イベント中は spread が大きく開くので
+  # 自動で弾く) と各戦略のエントリー条件が担う。長めに守りたい指標は pre/post を広げる。
+
+  # 米 PPI: 2026-06-11(木) 08:30 ET = 12:30 UTC = 21:30 JST (BLS 公式 schedule)
+  - name: "US PPI 2026-06"
+    at: "2026-06-11T12:30:00Z" # 21:30 JST、pre5→21:25 / post5→21:35
+    pre_minutes: 5
+    post_minutes: 5
+    policy: freeze
+
+  # 日銀 政策決定会合: 2026-06-15(月)〜16(火)。声明発表は 16 日の昼頃で時刻不定
+  # (例年 11:30〜13:00 JST)。10分窓だと発表が 12:05 JST 以降ならノーガード
+  # (その場合の防御は spread ゲート頼み)。確実に止めたいなら窓を広げる。
+  - name: "BOJ statement 2026-06"
+    at: "2026-06-16T03:00:00Z" # ≒12:00 JST、pre5→11:55 / post5→12:05
+    pre_minutes: 5
+    post_minutes: 5
+    policy: freeze
+
+  # 日銀 総裁定例記者会見: 2026-06-16(火) 15:30 JST (日銀公式予定)
+  - name: "BOJ press conference 2026-06"
+    at: "2026-06-16T06:30:00Z" # 15:30 JST、pre5→15:25 / post5→15:35
+    pre_minutes: 5
+    post_minutes: 5
+    policy: freeze
+
+  # 英 CPI (ONS): 2026-06-17(水) 07:00 BST = 06:00 UTC = 15:00 JST
+  - name: "UK CPI 2026-06"
+    at: "2026-06-17T06:00:00Z" # 15:00 JST、pre5→14:55 / post5→15:05
+    pre_minutes: 5
+    post_minutes: 5
+    policy: freeze
+
+  # 米 小売売上高: 2026-06-17(水) 08:30 ET = 12:30 UTC = 21:30 JST (Census 公式)
+  - name: "US retail sales 2026-06"
+    at: "2026-06-17T12:30:00Z" # 21:30 JST、pre5→21:25 / post5→21:35
+    pre_minutes: 5
+    post_minutes: 5
+    policy: freeze
+
+  # FOMC 声明: 2026-06-16(火)〜17(水) 会合、声明 17 日 14:00 ET = 18:00 UTC
+  # = 翌 03:00 JST。SEP/ドットチャート同時公表+30分後に会見 = 当カレンダー最大の荒れ。
+  - name: "FOMC 2026-06"
+    at: "2026-06-17T18:00:00Z" # 03:00 JST(6/18)、pre5→02:55 / post5→03:05
+    pre_minutes: 5
+    post_minutes: 5
+    policy: freeze
+
+  # BOE MPC: 2026-06-18(木) 12:00 BST = 11:00 UTC = 20:00 JST (BOE 公式予定)
+  - name: "BOE 2026-06"
+    at: "2026-06-18T11:00:00Z" # 20:00 JST、pre5→19:55 / post5→20:05
+    pre_minutes: 5
+    post_minutes: 5
+    policy: freeze
+
+  # 次の月の指標は公式スケジュールで日付・時刻を確認してから追加する
+  # (祝日の振替で発表日が前倒しになることがある。例: 米雇用統計)。
+  # 日付未確認のまま追加しないこと。

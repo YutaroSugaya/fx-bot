@@ -1,0 +1,40 @@
+# London Breakout probe — cross-pair — GBP_USD。GBP_JPY 版と完全同一ルール
+# (詳細は configs/probe_london_breakout_GBP_JPY.yaml)。backtest 専用・LIVE seed ではない。
+config_id: "probe-london-gbpusd"
+generated_at: "2026-06-13T12:00:00+09:00"
+valid_from: "2023-01-01T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: GBP_USD
+enabled: true
+
+market_regime:
+  type: "unclear"
+  confidence: 0.70
+  reason: "london breakout probe cross-pair (GBP_USD)"
+
+strategy:
+  name: "london_breakout"
+
+entry:
+  max_spread_pips: 1.5
+  require_breakout: false
+  direction: "both"
+
+exit:
+  exit_policy: strategy_computed
+  take_profit_pips: 14.0
+  stop_loss_pips: 10.0
+  max_hold_minutes: 480
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

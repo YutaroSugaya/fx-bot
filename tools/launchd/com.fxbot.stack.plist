@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.fxbot.stack</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/USERNAME/Desktop/fx-bot/tools/launchd/fxbot-stack.sh</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>60</integer>
+	<!-- install 時に /Users/USERNAME/Desktop/fx-bot を repo の場所へ、/Users/USERNAME を $HOME へ置換する
+	     (deploy/launchd/README.md)。スクリプトが起動前に落ちたときの出力は StandardErrorPath に残る。 -->
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>FXBOT_REPO</key>
+		<string>/Users/USERNAME/Desktop/fx-bot</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/USERNAME/.fxbot/logs/stack-launchd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/USERNAME/.fxbot/logs/stack-launchd.err.log</string>
+</dict>
+</plist>

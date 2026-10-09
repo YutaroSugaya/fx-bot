@@ -1,0 +1,70 @@
+# frozen-mompull (USD_JPY) — momentum_pullback 固定 active config(凍結実験)
+# ------------------------------------------------------------------
+# advisor の config 量産を止め、この単一 config を据えて N=100 trade まで
+# 「一切いじらず」測定するための config。狙いは「勝てるか/勝てないか」を有限試行で判定すること。
+#
+# 設計の3本柱:
+#   1) churn を止める      : 同一戦略を固定 (advisor.enabled=false / DB seed)
+#   2) 損小利大            : SL を即切り (6pips)、勝ちは ratchet で伸ばす
+#   3) 方向は相場が決める  : direction=both → momentum_pullback が 6h/24h トレンドから side を決定
+#                            (方向を config で固定すると片側に偏ったエントリーになるため)
+#
+# 注: 固定 TP/SL(exit_policy が strategy_computed でない)config には hard_limits の
+# config_ttl_minutes(60-120 分)が掛かるため、この遠未来 valid_until のままでは起動時検証
+# (= scripts/seed_active_config.sh の事前検査)を通らない。現状は backtest 用の参照 config:
+#   go run ./cmd/backtest -config ../configs/frozen_experiment_USD_JPY.yaml -from <YYYY-MM-DD> -to <YYYY-MM-DD>
+config_id: "frozen-mompull-usdjpy-v1"
+generated_at: "2026-06-04T11:00:00+09:00"
+valid_from: "2026-06-04T00:00:00Z"
+# 遠未来 = TTL 失効しない (engine/gate の expired 判定を恒久パス)。
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: USD_JPY
+enabled: true
+
+market_regime:
+  # direction=both なので regime は方向を縛らない (実行時の 6h/24h トレンドが side を決める)。
+  type: "unclear"
+  confidence: 0.70
+  reason: "frozen manual config (experiment v1); side は実行時トレンドで決定"
+
+strategy:
+  name: "momentum_pullback"
+  timeframe: "5m"
+  trend_timeframe: "1h"
+
+entry:
+  # spread > 1.0pip は no_trade (東京早朝の ~10pip 拡大はここで自動回避)。
+  max_spread_pips: 1.0
+  # 5m ボラが薄すぎ (<1.5) / 荒すぎ (>6.0) は見送り。dead-market chop を避ける。
+  min_volatility_pips_5m: 1.5
+  max_volatility_pips_5m: 6.0
+  require_breakout: false
+  direction: "both"
+
+exit:
+  # 損小利大: SL=6 即切り / TP=12 / ratchet で勝ちを伸ばす。RR(名目)=2.0。
+  take_profit_pips: 12.0
+  stop_loss_pips: 6.0
+  # 勝ちを伸ばすため保有を長めに + 含み益が残ってれば延長。
+  max_hold_minutes: 90
+  extension_max_minutes: 30
+  extension_unrealized_pips_threshold: 4.0
+  # MaxHold 直前で浅い損のうちに逃がす (損をさらに削る。勝ちは途中で切らない)。
+  early_exit_window_minutes: 15
+  early_exit_target_pips: -3.0
+  # ratchet (trailing TP): +8 到達で trailing 開始、ピークから 2pip 戻りで利確。
+  # locked = arm-giveback = 6 = TP×0.5 (RR floor の公式通過値)。
+  ratchet_arm_pips: 8.0
+  ratchet_giveback_pips: 2.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  # 0 = 無制限窓 (固定 config は窓が永続するため)。ブレーキは連敗ガード + 日次loss cap。
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

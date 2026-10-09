@@ -1,0 +1,50 @@
+# gotobi 仲値 probe — falsifier smell-test config (USD_JPY)
+# ------------------------------------------------------------------
+# 戦略 gotobi_fix が出口を定数算出する: 09:00 JST 買い → MaxHold 55min (= 09:55 仲値)
+# で決済、保護 SL 30pips、TP 実質無し。下の exit は strategy_computed の placeholder。
+#
+# ⚠️ これは backtest 専用の probe config。LIVE seed ではない (N 計測対象外・凍結実験と無関係)。
+#    実行: go run ./cmd/backtest -symbol USD_JPY -config configs/probe_gotobi_USD_JPY.yaml \
+#            -from 2023-11-01 -to 2026-06-11 -fee-rate 0.002 -spread-median 1.0 -slippage 0.2
+config_id: "probe-gotobi-usdjpy"
+generated_at: "2026-06-12T12:00:00+09:00"
+# backtest 期間 (2023-11〜現在) を覆う恒久窓。strategy_computed なので TTL 検査は免除。
+valid_from: "2023-01-01T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: USD_JPY
+enabled: true
+
+market_regime:
+  type: "unclear"
+  confidence: 0.70
+  reason: "gotobi probe: side は実需フロー (仲値ドル買い) で buy 固定。regime は方向を縛らない"
+
+strategy:
+  name: "gotobi_fix"
+
+entry:
+  max_spread_pips: 1.0
+  require_breakout: false
+  direction: "buy_only"
+
+exit:
+  # 出口は戦略 gotobi_fix.go が定数算出する (MaxHold 55 / 保護 SL 30 / TP 実質無し)。
+  # 下の tp/sl は validator placeholder で runtime には使われない (Signal が上書き)。
+  exit_policy: strategy_computed
+  take_profit_pips: 14.0
+  stop_loss_pips: 10.0
+  max_hold_minutes: 55
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  # strategy_computed (恒久窓) は 0=無制限 必須。ブレーキは backtest では不要。
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 0
+
+no_trade:
+  enabled: false
+  reason: ""

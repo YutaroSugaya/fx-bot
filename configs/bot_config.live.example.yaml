@@ -1,0 +1,78 @@
+# bot_config.live.example.yaml — Live mode template
+#
+# 使い方:
+#   1. このファイルを configs/bot_config.live.yaml にコピーする (gitignored)
+#   2. .env に LIVE_TRADING_ENABLED=true / LIVE_CONFIRM_SYMBOLS=<csv> と
+#      GMO_API_KEY / GMO_API_SECRET をセット
+#   3. `BOT_CONFIG_PATH=../configs/bot_config.live.yaml make start`
+#
+# tracked の configs/bot_config.yaml は常に paper_config 固定 (regression test
+# が CI でガード)。Live を走らせる責任はこの override ファイルを参照させる
+# 運用判断に閉じている。
+#
+# Live mode gate (.env + API キーすべて揃って初めて Live 起動):
+#   - LIVE_TRADING_ENABLED=true
+#   - LIVE_CONFIRM_SYMBOLS=USD_JPY,EUR_JPY  (この YAML の `symbols:` と SET 等価)
+#     ※ 単一 symbol なら旧名の LIVE_CONFIRM_SYMBOL も可。
+#       multi-symbol で旧名を使うと reject される
+#       (= 新規 symbol を env 更新せずに Live に混ぜないため)
+#   - GMO_API_KEY=<key>
+#   - GMO_API_SECRET=<secret>
+# 1 つでも欠けると bot は paper_config に自動降格し WARN ログを出す
+# (backend/internal/app/live_guard.go)。
+#
+# ⚠️ エッジ(コスト込みで正の期待値)は確認できていない。動かす前に README の「検証の進め方と結論」を読むこと。
+
+bot:
+  mode: live_config         # disabled | paper_config | live_config
+  timezone: Asia/Tokyo
+
+symbols:
+  - USD_JPY
+  # multi-symbol を有効化する場合は JPY quote のみ。
+  # LIVE_CONFIRM_SYMBOLS env を全 symbol で更新すること (順不同、SET 一致)。
+
+# LLM(claude CLI)の定期呼び出しは opt-in。使うなら true(利用料・利用枠を消費する)。
+ai_advisor:
+  enabled: false
+  provider: claude_cli
+  interval_minutes: 30
+  weekdays_only: true
+  # 応答がこの秒数を超えたらハング扱いで打ち切る。
+  claude_cli_timeout_seconds: 300
+  config_ttl_minutes: 60
+  prompt_path: prompts/generate_strategy_config.md
+  input_path: runtime/ai_input/latest_summary.json
+  output_path: configs/strategy_config.next.yaml
+
+risk:
+  # per-symbol cap
+  # 当日の実現損失がこの額(円)に達したら、そのシンボルの新規を止める(qty=1000 想定)。
+  # ロットを上げるときは一緒に上げる。
+  max_daily_loss_jpy: 2000
+  # 当日この回数連敗したら、そのシンボルの新規を止める(3 連敗で 30 分 freeze も入る)。
+  max_consecutive_losses: 4
+  max_open_positions: 1
+  # account-wide cap。0 = 無効。multi-symbol で live を動かすときに設定する。
+  account_max_open_positions: 0
+  account_max_daily_loss_jpy: 0
+
+gmo:
+  public_base_url: https://forex-api.coin.z.com/public
+  private_base_url: https://forex-api.coin.z.com/private
+  private_get_limit_per_sec: 6
+  private_post_limit_per_sec: 1
+
+orders:
+  # 現在この 2 項目はコードから読まれていない(parse されるだけ)。live の新規は常に
+  # 成行(MARKET)で建て、約定後に broker 側 OCO(TP/SL)を置く。
+  prefer_order_type: MARKET_THEN_OCO  # not read (reserved)
+  fallback_order_type: ""
+
+
+scheduler:
+  weekdays_only: true
+  start_day: MONDAY
+  start_time: "07:00"
+  end_day: SATURDAY
+  end_time: "06:00"

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- fxbot bot 常駐 launchd ジョブ。KeepAlive で bot の異常終了時に自動再起動
+     (bot 側の出口 ratchet / MaxHold は bot プロセス前提のため)。
+     手順は deploy/launchd/README.md。/Users/USERNAME は install 時に置換する。 -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fxbot.bot</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <!-- TCC 回避のため ~/.fxbot/ にコピーした supervisor を指す (README 参照)。 -->
+    <string>/Users/USERNAME/.fxbot/bot-supervisor.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- bot が異常終了したら再起動するが、正常 exit(0) では再起動しない。
+       手動 stop (kill) で意図的に止めた場合の再起動暴走を避ける。 -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <!-- クラッシュループ防止: 最低 30 秒は間隔を空けて再起動。 -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/USERNAME/.fxbot/logs/launchd-bot.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/USERNAME/.fxbot/logs/launchd-bot.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>FXBOT_PROJECT_DIR</key>
+    <string>/Users/USERNAME/Desktop/fx-bot</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>

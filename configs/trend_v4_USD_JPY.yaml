@@ -1,0 +1,57 @@
+# trend-v4 (USD_JPY) — trend_follow runner
+# ------------------------------------------------------------------
+#   入口 = トレンド順張り(1H 200SMA 傾き ≥±5pips = dead-market 自動回避 / Donchian-48 継続ブレイク
+#          = 再エントリー間隔を確保)。押し目の入口は多レジーム backtest で reject 済のため、
+#          入口はトレンド方向の継続ブレイクにしている。
+#   利確 = trailing ratchet(arm=3×ATR で武装 → 1.5×ATR 戻しで決済 = 勝ちを伸ばす。ATR 適応)。
+#   損失 = 構造的 SL=2×ATR(broker OCO 側)+ kill-switch(max_loss_in_this_window_jpy)。
+# forward-test 用の config。holdout 検証は通っていない(= エッジ未証明)。
+#   戦略コードは trend_follow.go。出口は strategy_computed(下の値は placeholder)。
+# 有効化 = DB strategy_configs(status='active')に seed する:
+#   bash scripts/seed_active_config.sh [--apply] [--mode paper_config|live_config] configs/trend_v4_USD_JPY.yaml
+config_id: "trend-v4-usdjpy"
+generated_at: "2026-06-15T13:00:00+09:00"
+valid_from: "2026-06-15T00:00:00Z"
+valid_until: "2030-12-31T23:59:59Z"
+
+symbol: USD_JPY
+enabled: true
+
+market_regime:
+  type: "unclear"
+  confidence: 0.70
+  reason: "v4 trend_follow runner; side は 1H 200SMA トレンド方向で決定 (both)"
+
+strategy:
+  name: "trend_follow"
+
+entry:
+  # spread > 1.5pip は no_trade(東京早朝の ~10pip 拡大を自動回避)。
+  max_spread_pips: 1.5
+  require_breakout: false
+  direction: "both"
+
+exit:
+  # 出口は trend_follow.go が ATR から定数算出(SL=2×ATR / ratchet arm3×&give1.5×ATR / TP off / MaxHold 30日)。
+  # 下の値は validator placeholder で runtime には使われない(Signal が上書き)。
+  exit_policy: strategy_computed
+  take_profit_pips: 100.0
+  stop_loss_pips: 30.0
+  max_hold_minutes: 43200
+  extension_max_minutes: 0
+  extension_unrealized_pips_threshold: 0.0
+  early_exit_window_minutes: 0
+  early_exit_target_pips: 0.0
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  # ★ kill-switch: 累計損失がこの額に達したらこの config は新規を止める(forward-test の歯止め)。
+  max_loss_in_this_window_jpy: 2000
+
+no_trade:
+  enabled: false
+  reason: ""

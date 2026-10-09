@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# pre-commit: scripts/pre-commit.sh への委譲ラッパ。
+# 有効化: git config core.hooksPath .githooks (pre-commit / pre-push が両方有効になる)。
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+exec bash scripts/pre-commit.sh "$@"

@@ -1,0 +1,55 @@
+# CI: Stop hook は ESC 中断 / 強制終了で発火しないので、サーバ側でも build / vet / test と
+# secret scan を回す二重化。
+# ⚠️ 非 integration テストのみ (DB 不要)。-tags integration は付けない
+#    (integration suite は全テーブルを truncate する。INTEGRATION_TEST_DB_URL も設定しない)。
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 公開リポジトリ: fork からの PR を含め GITHUB_TOKEN は読み取りのみ。
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: build
+        run: cd backend && go build ./...
+      - name: vet
+        run: cd backend && go vet ./...
+      - name: test (non-integration only — never -tags integration)
+        run: cd backend && go test -race -count=1 ./...
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: install
+        run: cd frontend && npm ci --no-fund
+      - name: test (tsc + vitest)
+        run: cd frontend && npm test
+      - name: build
+        run: cd frontend && npm run build
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: scanner self-test
+        run: bash scripts/secret-scan_test.sh
+      - name: scan for committed secrets
+        run: bash scripts/secret-scan.sh
