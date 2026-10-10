@@ -10,20 +10,7 @@
 - 外部ポジション (`source=external_broker`) は `max_open_positions` カウント対象外、TP/SL/MaxHold 管理対象外、強制決済ボタン非表示。bot が触らない不可侵 inventory として扱う
 - `runtime/emergency_stop.flag` がある間は新規エントリーしない (新規は risk Gate が拒否する。サイクル冒頭で確認して LLM も呼ばずに止まるのは LLM 判断ループだけで、advisor / advisor v2 は claude を呼んだうえで新規が拒否される)
 
-## 2. 撤退ライン (例)
-
-数値は資金規模とロットに合わせて運用者が事前に決める。決めたら期間中は動かさない。
-
-| 状況 | アクション |
-|---|---|
-| 月次 PnL が 2 ヶ月連続マイナス | ロットを 1 段下げる |
-| 単月 MDD が事前に決めた上限を超える | 翌月は新規エントリー停止、原因解析のみ |
-| 累積 PnL が事前に決めた損失上限に達する | 完全停止。Backtest から戦略やり直す |
-| Reconciler 不整合 (`naked_broker_position` 以外) が 1 件でも出る | Live 新規エントリー停止 |
-| 重要指標帯で想定外約定が出る | 経済指標 no_trade ルール修正まで停止 |
-| 結果を見て手動で介入したくなる | ロットを 1 段下げる |
-
-## 3. 既知のハマりポイント
+## 2. 既知のハマりポイント
 
 | 症状 | 原因 | 対策 |
 |---|---|---|
@@ -37,17 +24,7 @@
 | `make start` 後に残るプロセス | trap で kill されなかった子プロセス | `lsof -nP -iTCP:8080 -iTCP:3000 -sTCP:LISTEN` で LISTEN しているプロセスを確認し、bot / next のものだけ `kill <pid>` する (`lsof -ti:8080` は接続中のブラウザ等も拾うので、そのまま `xargs kill` しない) |
 | 平日でも config が生成されない | `ai_advisor.enabled: false` (既定) か、scheduler の `start_time`/`end_time` 帯から外れている | `bot_config` の `ai_advisor` / `scheduler` セクション確認 |
 
-## 4. テスト / 品質維持
-
-```bash
-make test          # 全 race-detector 付き
-make test-cover    # カバレッジ
-make vet           # go vet
-make fmt           # go fmt
-make check-backend # PR 前の一括チェック
-```
-
-## 5. ロールバック計画
+## 3. ロールバック計画
 
 active config が暴走したら:
 

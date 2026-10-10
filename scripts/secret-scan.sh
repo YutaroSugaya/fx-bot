@@ -23,7 +23,7 @@ patterns=(
 
 # 除外: パターンをコメント / テストデータとして持つスキャナ自身と hook 群だけ。docs(*.md)や .env.example も
 # 走査する(パターンはキー本体まで要求するので、解説中の言及やプレースホルダには当たらない)。
-excludes=(':!scripts/secret-scan.sh' ':!scripts/secret-scan_test.sh' ':!scripts/pre-commit.sh' ':!.claude/hooks/*' ':!.githooks/*' ':!.codex/hooks/*')
+excludes=(':!scripts/secret-scan.sh' ':!scripts/secret-scan_test.sh' ':!scripts/pre-commit.sh' ':!.claude/hooks/*' ':!.githooks/*')
 
 found=0
 for p in "${patterns[@]}"; do

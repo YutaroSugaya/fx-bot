@@ -11,7 +11,7 @@ import (
 
 // ReflectionCLI runs the reflection step of the autonomous learning loop: one `claude -p`
 // whose inline prompt (BuildReflectionPayload) orchestrates the reflection-{regime,risk,strategy}
-// subagents via Task (the former reflection-analyst orchestrator role is inlined here). Given a
+// subagents via Task. Given a
 // win/loss digest + the current playbook, it returns a revised playbook and whether to apply it.
 //
 // FAIL-SAFE: a CLI/transport failure returns ("", false) + error; a garbled-output PARSE failure
@@ -87,7 +87,7 @@ func (r *ReflectionCLI) Reflect(ctx context.Context, tradesSummary, currentPlayb
 	cmd.Stderr = &stderr
 
 	if rerr := cmd.Run(); rerr != nil {
-		return "", false, fmt.Errorf("reflection-analyst cli: %w (%s)", rerr, stderr.String())
+		return "", false, fmt.Errorf("reflection cli: %w (%s)", rerr, stderr.String())
 	}
 	rules, update := ParseReflection(stdout.Bytes())
 	return rules, update, nil

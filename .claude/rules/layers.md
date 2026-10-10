@@ -21,9 +21,3 @@ paths:
 ## CQRS / スキーマ
 - Command と Query を分離(`usecase/command` ↔ `usecase/query`)→ `layers/usecase.md`
 - スキーマ DDL は `backend/migrations/` のみ。repository/port のコードに `CREATE/ALTER/DROP TABLE` を書かない → `docs/workflows/MIGRATIONS.md`
-
-## TODO(本質的な決定論化・別タスク)
-grep/Stop-hook は「事後」かつ session 限定(`FXBOT_PRESTOP_CHECKS=off` や CI 直 commit は抜ける)。
-CI レベルで縛るなら **golangci-lint の `depguard`** で上記 import 禁止を宣言し
-`make check-backend` に組み込むのが本筋(t_wada 流に「違反 import を置いて lint が落ちる」Red から)。
-ただし live bot の build ゲートを変えるため、導入は別 PR でレビューを経て行う。

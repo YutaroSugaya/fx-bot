@@ -237,7 +237,6 @@ fireAdvisors(ctx, source) (scheduler) / triggerAdvisor(ctx, symbol) (手動 API)
        │   │      └─ claude -p を 1 回 (timeout = claude_cli_timeout_seconds)。
        │   │         root が 4 subagent (skill 01〜04) を並列起動し、
        │   │         統合後に skill 07 → 05 → 06 を自分で読んで YAML 出力。
-       │   │         skill 08 / 09 は使わない
        │   ├─ ⑤ ai_advisor_runs INSERT (status / source / duration)
        │   └─ ⑥ Promoter.PromoteFromYAML(raw, accountState, source)
        │       ├─ Validate (schema / hard_limit / semantic / risk)

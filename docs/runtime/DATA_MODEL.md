@@ -390,7 +390,7 @@ Live mode の naked_broker_position は emergency_stop でなく `external_broke
 | `profit_loss_jpy` | DOUBLE NOT NULL | 損益 (円)。**GROSS のまま維持**(既存集計と互換)。net = gross − `fee_jpy` + `swap_jpy` は導出側で計算 |
 | `fee_jpy` | DOUBLE NOT NULL DEFAULT 0 | (migration 0007) GMO 手数料・往復 = entry leg (`positions.entry_fee_jpy`) + close leg (close fill の `Execution.FeeJPY` 実報告 or 0.002% 推定)。close saga / reconcile で `usecase/command/close_costs.go` (`composeLiveCloseCosts`、paper は `composePaperCloseCosts`) が合成 |
 | `swap_jpy` | DOUBLE NOT NULL DEFAULT 0 | (migration 0007) 跨ぎスワップ (close fill の `Execution.SettledSwapJPY`、符号付き) |
-| `fee_estimated` | BOOLEAN NOT NULL DEFAULT false | (migration 0007) true=いずれかの leg を 0.002% 推定で補完 (entry fee 未捕捉の旧建玉 / reconcile 推定 close / `cmd/fee-backfill` 行) / false=両 leg とも broker 実報告値 |
+| `fee_estimated` | BOOLEAN NOT NULL DEFAULT false | (migration 0007) true=いずれかの leg を 0.002% 推定で補完 (entry fee 未捕捉の旧建玉 / reconcile 推定 close) / false=両 leg とも broker 実報告値 |
 | `close_reason` | TEXT NOT NULL CHECK | `take_profit` / `stop_loss` / `max_hold` / `early_exit` / `manual` / `reconcile_cold_close` / `ratchet_takeprofit` / `ratchet_stoploss` / `broker_close` / `session_flatten`。`ratchet_takeprofit` は migration 0004、`early_exit` (early-exit window 発火を `max_hold` と分離) は 0005、`broker_close` (TP/SL 非一致の broker-side close を reconcile が実 fill から復元) は 0006、`ratchet_stoploss` (損切り側 trailing = trough から giveback 戻りで浅く撤退) は 0010、`session_flatten` (毎朝の全玉強制手仕舞い) は 0011 で追加。集計クエリ `CountEarlyExitTradesSinceBySymbol` は `close_reason='early_exit'` を直接カウント |
 | `opened_at` / `closed_at` | TIMESTAMPTZ NOT NULL | |
 | `created_at` | TIMESTAMPTZ NOT NULL DEFAULT now() | |
@@ -507,15 +507,8 @@ OHLCV bar の永続化。**1 行 = 1 本のローソク足**。
 
 ## 永続化されないが重要なファイル / メモリ状態
 
-| 何 | どこ | 役割 |
-|---|---|---|
-| `runtime/emergency_stop.flag` | ファイル | trip すると全 worker が新規エントリ停止 |
-| `runtime/ai_input/latest_summary.json` | ファイル (artifact adapter 経由) | Claude prompt 入力。書込/読込は `port.MarketSummaryArtifactStore` |
-| `configs/strategy_config.active.yaml` | ファイル (artifact adapter 経由) | DB の active 行と同期する human-readable artifact。**真の SoT は DB** |
-| `app.ActiveConfigHolder` | メモリ | 現在の active config を atomic に保持 |
-| `app.Counters` | メモリ | TickerErrors / EmergencyTrips / ResolveTimeouts / CloseRaces / NakedPositions |
-| `app.Aggregator` | メモリ | 1m/5m/15m/1h の rolling candle buffer |
-| `priceTick の spreadHistory` | メモリ | 直近 24h の spread サンプル |
+DB の外にある状態(`runtime/emergency_stop.flag`・`runtime/ai_input/`・`ActiveConfigHolder`・`Counters`・Aggregator など)は [RUNTIME.md §4・§5](RUNTIME.md) が正。DB の active 行と同期する
+`configs/strategy_config.active.yaml`(artifact。SoT は DB)は [CONFIG.md](CONFIG.md) の表を参照。
 
 ---
 

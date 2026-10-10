@@ -23,18 +23,7 @@ Claude advisor が `strategy_config.yaml` を生成するときに使う prompt 
 
 - bot から渡される `latest_summary.json` を入力に取る
 - root は 4 つの subagent (`risk-auditor` / `regime-classifier` / `strategy-selector` / `tpsl-designer` = skill 01〜04) を Task ツールで並列起動し、その結果を統合したあと、自分で skill 07 (コスト監査) → 05 (出力スキーマ) → 06 (再評価間隔) を Read して最終 YAML を組む (Claude 内部での並列、claude_cli.go から見れば single subprocess)
-- skill 08 / 09 は advisor の毎回のフローからは呼ばれない (手動で使う)
 - 最終出力は YAML 1 本 (= 1 つの `strategy_config`)
-
-### スタンドアロンプロンプト (advisor cycle 外部、運用補助用)
-
-| ファイル | 役割 |
-|---|---|
-| [prompts/analyze_trading_logs.md](../../prompts/analyze_trading_logs.md) | 過去 N 日の trades + signal_rejections を渡して日次/週次サマリを生成 |
-| [prompts/improve_strategy_rules.md](../../prompts/improve_strategy_rules.md) | reject 上位理由から `prompts/skills/*` の改善提案を出す |
-| [prompts/review_rejected_config.md](../../prompts/review_rejected_config.md) | validator が reject した config を Claude に説明させる (debug 用) |
-
-これらは scheduler から自動で呼ばれない。手動 `claude -p < prompts/xxx.md` で運用補助に使う。
 
 ---
 
@@ -51,8 +40,6 @@ Claude advisor が `strategy_config.yaml` を生成するときに使う prompt 
 | 05 | `05_output_format.md` | YAML 出力スキーマ + hard_limit 範囲 |
 | 06 | `06_recheck_cadence.md` | `next_advisor_run_in_minutes` の決定 |
 | 07 | `07_execution_cost.md` | spread / slippage を考慮した entry 抑止 |
-| 08 | `08_performance_review.md` | 週次 / 月次の成績レビュー (手動で使う。advisor のフローからは呼ばれない) |
-| 09 | `09_symbol_selection.md` | 追加する通貨ペアの評価 (手動で使う。advisor のフローからは呼ばれない) |
 
 ---
 
@@ -159,7 +146,7 @@ SoT は [domain/market/summary.go](../../backend/internal/domain/market/summary.
 
 - ❌ skill の指示を更新したが対応する validator (hard_limits / semantic) を更新し忘れた
 - ❌ Claude に YAML の代わりに JSON で返すように指示した (parser が壊れる)
-- ❌ skill 間で矛盾する指示を出した (例: `04_risk_rules.md` で qty 100, `08_performance_review.md` で qty 500)
+- ❌ skill 間で矛盾する指示を出した (例: `04_risk_rules.md` と `05_output_format.md` で推奨 qty が違う)
 - ❌ プロンプトに bot 内部の private field 名を直接書いた (refactor で壊れる)
 
 ---

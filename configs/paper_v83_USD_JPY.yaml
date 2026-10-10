@@ -6,9 +6,7 @@
 # (ダッシュボード「設定未解決でスキップ」)となって発注が消える。paper で LLM ループを動かすときは
 # この config を paper_config の active として seed する。
 #
-# 内容は configs/llm_v7_USD_JPY.yaml と同一 (config_id・日付メタ・market_regime.reason だけが違う)。
-# paper と live で同じ条件セットを測るため、ここで条件を作り変えない。
-# 同値性は backend TestPaperV83Config が entry/exit/risk 全文比較で強制する。
+# admission に効く値 (entry.max_spread_pips / risk.*) は backend TestPaperV83Config が固定する。
 #
 # strategy ブロック (exhaustion_fade / allowed_hours_jst) は runtime では発火しない:
 # bot_config.llm_decision.exclude_hours_jst[USD_JPY] = [] のとき EngineOwnedHoursJST が空 =

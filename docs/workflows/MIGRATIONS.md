@@ -272,7 +272,7 @@ Claude Code Stop hook (`.claude/hooks/pre-stop-checks.sh`) は migration / DB �
 | 0004 | `trades.close_reason` CHECK に `'ratchet_takeprofit'` を追加 (0003 の reason。CHECK 拡張のみ) |
 | 0005 | `trades.close_reason` CHECK に `'early_exit'` を追加 (early-exit window 発火を `max_hold` と分離。`CountEarlyExitTradesSinceBySymbol` は `close_reason='early_exit'` を直接カウント) |
 | 0006 | `trades.close_reason` CHECK に `'broker_close'` を追加 (TP/SL 理論価格に一致しない broker-side close を reconcile が実 fill から復元して記録する reason) |
-| 0007 | `trades` に `fee_jpy` / `swap_jpy` / `fee_estimated` を追加 (GMO 手数料 0.002%×往復 + 跨ぎスワップの per-trade 計上。`profit_loss_jpy` は GROSS 維持。close saga / reconcile の `composeLiveCloseCosts` が書く。過去行の推定 backfill は `cmd/fee-backfill` — dry-run 既定、apply は人間が `FXBOT_HUMAN_APPROVED_DB_WRITE=1` を付けて実行) |
+| 0007 | `trades` に `fee_jpy` / `swap_jpy` / `fee_estimated` を追加 (GMO 手数料 0.002%×往復 + 跨ぎスワップの per-trade 計上。`profit_loss_jpy` は GROSS 維持。close saga / reconcile の `composeLiveCloseCosts` が書く) |
 | 0008 | `positions` に `entry_fee_jpy` / `entry_spread_pips` / `entry_slippage_pips` を追加 (entry 時点の実コスト。全 nullable = NULL 未捕捉と 0 実報告を区別。execute_order / manual_trade の entry 経路が書き、close saga が `trades.fee_jpy` へ合成) |
 | 0009 | `positions` に trailing STOP (損切り側 ratchet) の runtime 2 列 `trough_unrealized_pips` / `loss_ratchet_armed` を追加。arm/giveback は利確側 `ratchet_arm_pips` / `ratchet_giveback_pips` を共用する mirror なので snapshot 列は増やさない。`UpdatePositionRatchetState` が 4 値を 1 write で更新。DEFAULT 0/false = OFF |
 | 0010 | `trades.close_reason` CHECK に `'ratchet_stoploss'` を追加 (0009 の trailing STOP が返す reason。0009 と同じ変更で拡張) |

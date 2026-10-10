@@ -1,6 +1,6 @@
 # frozen-mtfpb (GBP_USD) — MTF pullback 固定 active config(凍結実験)
 # ------------------------------------------------------------------
-# momentum_pullback 固定 config (frozen_experiment_*) から「入口の選別」を作り直した
+# 固定 TP/SL の momentum_pullback から「入口の選別」を作り直した
 # MTF 順張りスキャル (1玉版)。公開されている裁量手法をルール化したもの。
 #
 # 入口 = 1h トレンド方向 × 5m が逆 (押し目) × 5m の「壁」(3回反発トレンドライン) を

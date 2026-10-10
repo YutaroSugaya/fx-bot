@@ -104,7 +104,7 @@ logger.Info("position_closed",
 - `close_races > 0` → mutex 設計の見直し or race
 - `naked_positions > 0` → reconcile の取り込み確認
 - `resolve_timeouts > 0` → GMO 約定確認の遅延
-- `pnl_24h_jpy` が日次損失 cap (`risk.max_daily_loss_jpy`) に近い → 単日損失大、[OPERATIONS_RUNBOOK.md §2](OPERATIONS_RUNBOOK.md) 参照
+- `pnl_24h_jpy` が日次損失 cap (`risk.max_daily_loss_jpy`) に近い → 単日損失大。cap に達すると risk Gate が新規を止める ([CONFIG.md](CONFIG.md))
 - `reject_count_24h > 20` → advisor 出力品質低下 or hard_limits の閾値見直し
 - `last_advisor_duration_ms > 120000` (= 2 分) → Claude CLI が重い、timeout 設定見直し
 

@@ -27,5 +27,3 @@ hook(`.claude/hooks/`・`.claude/settings*.json`・`.githooks/`)は修正案を�
 - 層規約(domain 純粋性 / handler→repo 禁止 / usecase は port 経由 / CQRS / R1)を維持。
 - PR 前に `make check-backend`(test -race + vet + build)を通す。
 - 機械的 enforcement は `.claude/hooks/`(Stop / PreToolUse)と CI。advisory は本ファイル + CLAUDE.md。
-- Codex 用の Stop hook は `.codex/hooks/` にあり、`.codex/hooks.json.example` の `<REPO_ROOT>` を置き換えて `.codex/hooks.json`(gitignore)として有効にする。
-  `.codex/config.toml` は `INTEGRATION_TEST_DB_URL` を `fxbot_test` に向ける(DB 関連の変更では Stop hook が `make test-integration` を回す)。

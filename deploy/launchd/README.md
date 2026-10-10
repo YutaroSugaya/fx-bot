@@ -26,7 +26,6 @@ ratchet が armed になった後に bot が死ぬと利確 floor (peak − give
 
 - `com.fxbot.healthcheck.plist` … 5 分ごとに `scripts/bot-healthcheck.sh` を実行し、bot の `/healthz` (BasicAuth の外にある
   liveness endpoint) が 200 + `ok` 応答を返さなければ macOS 通知 (と、`HEALTHCHECK_WEBHOOK` があれば webhook) を出す。read-only・DB には触らない。
-- `com.fxbot.night-review.plist` … 夜間の read-only レポート (下記)。
 
 ## repo の置き場所 (macOS の TCC)
 
@@ -101,21 +100,3 @@ KeepAlive が付いているので、unload せずにプロセスを kill して
 
 常駐化しても、bot 側の出口 (ratchet / MaxHold) は bot が生きている間しか効かない。ratchet が arm した時点で broker 側の SL を
 建値方向へ引き上げる (GMO の注文変更 API) 仕組みは未実装。それが入るまで、常駐化は最低限の保険にとどまる。
-
-## 夜間の定点観測レポート (com.fxbot.night-review)
-
-毎日 04:30 (ローカル時刻) に read-only の集計レポートを `~/.fxbot/reports/` に生成する
-(`scripts/night_review.sql` を postgres コンテナで実行するだけ。DB 書込・config 変更・bot 操作はしない)。
-
-```sh
-# repo root で実行する
-REPO="$(pwd)"
-cp scripts/night-review-cron.sh scripts/night_review.sql ~/.fxbot/
-chmod +x ~/.fxbot/night-review-cron.sh
-sed -e "s#/Users/USERNAME/Desktop/fx-bot#$REPO#g" -e "s#/Users/USERNAME#$HOME#g" \
-  deploy/launchd/com.fxbot.night-review.plist > ~/Library/LaunchAgents/com.fxbot.night-review.plist
-launchctl load ~/Library/LaunchAgents/com.fxbot.night-review.plist
-
-# 動作確認 (手動 1 回実行)
-~/.fxbot/night-review-cron.sh && ls ~/.fxbot/reports/
-```

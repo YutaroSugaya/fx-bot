@@ -32,7 +32,7 @@
 | [runtime/DATA_MODEL.md](runtime/DATA_MODEL.md) | PostgreSQL の全テーブルと不変条件 |
 | [runtime/OBSERVABILITY.md](runtime/OBSERVABILITY.md) | カウンタ・`/api/status`・監査テーブル・ログ |
 | [runtime/OPERATIONS_RUNBOOK.md](runtime/OPERATIONS_RUNBOOK.md) | 運用の不変条件・ハマりどころ・ロールバック手順 |
-| [../deploy/launchd/README.md](../deploy/launchd/README.md) | macOS での常駐化(launchd)・死活監視・夜間レポート |
+| [../deploy/launchd/README.md](../deploy/launchd/README.md) | macOS での常駐化(launchd)・死活監視 |
 
 ## 開発作業の手順 → `workflows/`
 

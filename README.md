@@ -207,7 +207,7 @@ frontend(Next.js)── /api/* を 127.0.0.1:8080 へ proxy
 ```
 層の契約は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、動きの全体図は [docs/runtime/SYSTEM_DESIGN.md](docs/runtime/SYSTEM_DESIGN.md)。
 
-`backend/cmd/`: `bot`(本体)/ `migrate` / `config-check`(active config の検証)/ `backtest` `sweep` `edge-judge`(検証)/ `histdata-ingest` `fetch-candles` `spread-calibrate`(データ)/ `fee-backfill`(手数料の推定記帳)。
+`backend/cmd/`: `bot`(本体)/ `migrate` / `config-check`(active config の検証)/ `backtest` `sweep` `edge-judge`(検証)/ `histdata-ingest` `fetch-candles` `spread-calibrate`(データ)。
 
 | ディレクトリ | 中身 |
 |---|---|
@@ -216,7 +216,7 @@ frontend(Next.js)── /api/* を 127.0.0.1:8080 へ proxy
 | `.claude/agents/` | LLM の各経路が呼ぶ subagent の定義 |
 | `scripts/` | seed・backup・データ取得・秘密情報スキャン・死活監視 |
 | `tools/` | `fake_claude.sh`(Claude を呼ばずに advisor の経路を試す。macOS 専用)・`launchd/`(postgres + bot + dashboard の自動復帰) |
-| `deploy/launchd/` | macOS の launchd テンプレート(bot の常駐・healthcheck・夜間レポート)。手順は [deploy/launchd/README.md](deploy/launchd/README.md) |
+| `deploy/launchd/` | macOS の launchd テンプレート(bot の常駐・healthcheck)。手順は [deploy/launchd/README.md](deploy/launchd/README.md) |
 
 ## 既知の制限
 
@@ -248,7 +248,7 @@ integration テスト(`make test-integration`)は全テーブルを truncate す
 - `.claude/settings.json` は hooks と 2 つのフラグだけを持ち、permissions は持たない(許可ルールやモードは各自の `.claude/settings.local.json` に書く)。hook は Claude Code を起動したシェルの `PATH` で `go` / `node` / `make` を探す。GUI から起動して見つからないときは `.claude/settings.local.json` の `env` で `PATH` を足す。
 - deny hook は「止める仕組み」で、サンドボックスではない(文字列の照合なので、別の言語のワンライナー等までは止めない)。
 - Stop hook を外すには `FXBOT_PRESTOP_CHECKS=off` / `FXBOT_DOCS_SYNC_CHECKS=off`(`.claude/settings.local.json` の `env` などで)。deny hook を外すには `.claude/settings.json` の hooks から外す。
-- AI 作業の絶対ルールは [CLAUDE.md](CLAUDE.md)(Codex 向けの入口は [AGENTS.md](AGENTS.md)。`.codex/` に Stop hook の雛形)。
+- AI 作業の絶対ルールは [CLAUDE.md](CLAUDE.md)(Codex 向けの入口は [AGENTS.md](AGENTS.md))。
 
 ## ドキュメント
 

@@ -90,4 +90,3 @@ __pycache__/
 # ===== Local-only files (作業メモ・端末ごとの設定) =====
 private/
 CLAUDE.local.md
-.codex/hooks.json

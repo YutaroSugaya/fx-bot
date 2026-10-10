@@ -104,7 +104,7 @@ method `PositionRepository.UpdateRatchetState(ctx, id, peak, armed, trough, loss
 |---|---|
 | `FeeJPY` | 往復手数料 = entry leg (`positions.entry_fee_jpy`) + close leg (close fill 実報告 or 0.002% 推定)。**正 = コスト** |
 | `SwapJPY` | close fill の settledSwap (**受取 = 正** の符号付き) |
-| `FeeEstimated` | true = いずれかの leg を 0.002% 推定で補完 (旧建玉 / reconcile 推定 close / `cmd/fee-backfill` 行) |
+| `FeeEstimated` | true = いずれかの leg を 0.002% 推定で補完 (旧建玉 / reconcile 推定 close) |
 
 `ProfitLossJPY` は **GROSS のまま維持** — net = gross − FeeJPY + SwapJPY は導出側
 (`DeriveEdgeMetrics` / `cmd/edge-judge`) で計算する。

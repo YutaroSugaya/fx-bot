@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -20,8 +19,6 @@ import (
 //	   llm_decision_cycle.go の cfgID=="" 分岐で stage=no_active_config (「設定未解決でスキップ」)。
 //	つまり全判断が無音で消える。
 //
-// この config は live の llm-v7-usdjpy と**同一内容**(config_id だけ差し替え)。
-// 理由: paper の結果を live と同じ条件で比較できるようにするため。
 // admission に効くのは entry.max_spread_pips / risk.* だけで、strategy ブロック
 // (exhaustion_fade・allowed_hours_jst) は llm_decision.exclude_hours_jst[USD_JPY]=[] により
 // per-tick engine が USD_JPY を一切持たないため実行されない (EngineOwnedHoursJST=空)。
@@ -77,8 +74,7 @@ func TestPaperV83Config(t *testing.T) {
 		t.Errorf("config resolves to no_trade; want an active trading config")
 	}
 
-	// ★ live (llm-v7-usdjpy) と同値であるべき admission 面のパラメータ。
-	// ここがズレると paper の計測結果が live 条件の測定でなくなる。
+	// admission 面のパラメータ (live に移すときも同じ値で比較できるよう固定する)。
 	if cfg.Entry.MaxSpreadPips != 3.0 {
 		t.Errorf("entry.max_spread_pips = %v, want 3.0 (unified spread floor)", cfg.Entry.MaxSpreadPips)
 	}
@@ -94,28 +90,5 @@ func TestPaperV83Config(t *testing.T) {
 	}
 	if cfg.Risk.MaxTradesInThisWindow != 0 {
 		t.Errorf("max_trades_in_this_window = %d, want 0 (disabled)", cfg.Risk.MaxTradesInThisWindow)
-	}
-
-	// live seed と内容が同一であること (config_id 行を除く全文一致)。
-	// paper と live seed の条件が乖離しないことの機械的保証 — 片方だけ編集したらここで落ちる。
-	liveRaw, err := os.ReadFile("../../../configs/llm_v7_USD_JPY.yaml")
-	if err != nil {
-		t.Fatalf("read live seed: %v", err)
-	}
-	liveCfg, err := ParseStrategyConfig(liveRaw)
-	if err != nil {
-		t.Fatalf("parse live seed: %v", err)
-	}
-	if !reflect.DeepEqual(cfg.Entry, liveCfg.Entry) {
-		t.Errorf("entry section drifted from live seed:\n paper=%+v\n live =%+v", cfg.Entry, liveCfg.Entry)
-	}
-	if !reflect.DeepEqual(cfg.Exit, liveCfg.Exit) {
-		t.Errorf("exit section drifted from live seed:\n paper=%+v\n live =%+v", cfg.Exit, liveCfg.Exit)
-	}
-	if !reflect.DeepEqual(cfg.Risk, liveCfg.Risk) {
-		t.Errorf("risk section drifted from live seed:\n paper=%+v\n live =%+v", cfg.Risk, liveCfg.Risk)
-	}
-	if cfg.Strategy.Name != liveCfg.Strategy.Name {
-		t.Errorf("strategy.name = %q, want %q (live と同一)", cfg.Strategy.Name, liveCfg.Strategy.Name)
 	}
 }

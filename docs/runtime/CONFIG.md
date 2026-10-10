@@ -88,8 +88,7 @@ scheduler:
 tracked ファイルの安全側既定 (mode が live_config でない / 損失 cap が小さい / LLM を定期的に呼ぶ経路が
 全部 off) は [tracked_bot_config_test.go](../../backend/internal/config/tracked_bot_config_test.go) が固定している。
 
-旧 `position_guard` セクションは廃止済み (読む production code が無い)。残っていても非 strict
-unmarshal で無視される。naked broker position の扱いは reconcile が決める ([DATA_MODEL.md](DATA_MODEL.md) `recovered_positions`)。
+naked broker position の扱いは reconcile が決める ([DATA_MODEL.md](DATA_MODEL.md) `recovered_positions`)。
 
 `bot.mode` は `config.Mode` 型。production code では `m.IsLive()` / `m.IsPaper()` で判定する
 (`"live_config"` 文字列直接比較は禁止)。
@@ -116,7 +115,6 @@ LLM が一定間隔で trade / no_trade を判断し、既存の発注経路 (ri
 - 決定論戦略との時間帯の住み分け: `exclude_hours_jst` (シンボル → JST の時間。その時間は LLM ループが判断せず、
   active config の戦略を決定論エンジンが回す)
 - `decision_single_agent` (省略時 true = 1 つの claude で判断。false で subagent パネル)
-- 不使用: `htf_trend_veto_lookback` (旧 yaml の parse 互換のみ)
 
 `runtime/emergency_stop.flag` がある間、判断サイクルは LLM を呼ばずに stage `emergency_stop` で終わる。
 

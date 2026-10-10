@@ -6,7 +6,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ParseReflection turns the reflection-analyst subagent stdout into (newRules, update). FAIL-SAFE:
+// ParseReflection turns the reflection step's stdout into (newRules, update). FAIL-SAFE:
 // any empty / garbled / update:false / empty-rules output returns ("", false) = keep the current
 // playbook (a safe no-op). The reflection loop only ever swaps advisory text; on bad output it
 // changes nothing. Reuses the same messy-output cleanup as the other parsers.
