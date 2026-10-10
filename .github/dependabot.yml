@@ -1,4 +1,5 @@
 # 依存の更新 PR を週 1 回まとめて出す(セキュリティ更新は GitHub の設定で別途有効)。
+# Go と npm のメジャー更新は破壊的変更を含むので自動 PR を出さない(上げるときは手で上げて検証する)。
 version: 2
 updates:
   - package-ecosystem: gomod
@@ -6,11 +7,17 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
