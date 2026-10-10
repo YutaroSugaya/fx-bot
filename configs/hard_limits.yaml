@@ -20,14 +20,16 @@ hard_limits:
   # /v1/symbols.minOpenOrderSize は理論上 100 通貨だが、bot の発注経路(MARKET + OCO)で
   # 確かめたのは 1,000 通貨(= 0.1 lot)まで。auto-trade もそこから始めるため min=1000。
   # max=100,000 = 10 lot。
-  # 最大損失の目安: SL 30pips × 100,000通貨 × 0.01円 = 30,000円 / 1,000通貨なら 300円。
+  # 最大損失の目安: SL 30pips × 100,000通貨 × 0.01円 = 30,000円 / 1,000通貨なら 300円
+  # (実際には下の order_boundary が 1 トレード ¥8,000 を超える発注を止める)。
   quantity:
     min: 1000
     max: 100000
 
-  # グローバル TP レンジ。(a) strategy_config validator のフォールバックと、(b) build_market_summary が
-  # LLM に「選べる TP 範囲」として見せる値を兼ねる。min は往復コスト床(≈1.1pips)に負ける薄利を
-  # 構造的に禁止する値、max は数十 pips の値幅を取りに行くデイトレ域。
+  # グローバル TP レンジ。(a) 下の strategy_limits にエントリーが無い戦略だけに効く validator の
+  # フォールバック (advisor の 3 戦略は strategy_limits で TP 8 / 12 から許す) と、(b) build_market_summary が
+  # LLM に「選べる TP 範囲」として見せる値を兼ねる。min 16 はフォールバック側で、往復コスト床(≈1.1pips)に
+  # 負ける薄利を禁止する値、max は数十 pips の値幅を取りに行くデイトレ域。
   # ⚠️ これは LLM への提示上限で、1 トレードの最悪損失は下の order_boundary
   # (SL sanity ≤50 / per-trade ≤¥8000)と日次・per-trade cap が縛る。
   take_profit_pips:
@@ -55,16 +57,19 @@ hard_limits:
     min: 0
     max: 5000
 
-  # 新規エントリーを許すスプレッドの絶対上限(entry gate が使う)。デイトレの TP30 なら
+  # 戦略 config の entry.max_spread_pips が取れる範囲 (validator が検査)。新規を止める実際のガードは
+  # active config の entry.max_spread_pips (risk Gate) で、ここがその上限を 3.0 に縛る。デイトレの TP30 なら
   # spread 3.0 はコストの 1 割で許容圏。東京早朝などの異常拡大(~10pips)は弾く。
-  # 相対ガード(spread > avg×2 → no_trade・market.IsSpreadSpike)は advisor サイクルでのみ
-  # 呼ばれるので、advisor off のときの実防御はこの絶対 cap。
+  # 相対ガード(spread > avg×2・market.IsSpreadSpike)は advisor サイクルで `spread_spike_observed` を
+  # ログに出すだけで、新規は止めない。
   max_spread_pips:
     min: 0.3
     max: 3.0
 
-  # Claude advisor cadence (60min auto / 15-59min event) と整合させた TTL 範囲。
-  # TTL 60 は auto fire とぴったり同期、90 は 30 分のオーバーラップで安全側。
+  # advisor の config の有効期間 (valid_until − valid_from) の範囲。固定 TP/SL の config にだけ掛かる
+  # (exit_policy: strategy_computed は免除)。再評価の間隔は config の next_advisor_run_in_minutes で、
+  # validator は 0 か 10〜480 分を受け付け、0 なら bot_config の ai_advisor.interval_minutes (tracked は 30) に
+  # 戻る。skill 06 は平時 30 / イベント帯 10 を出すので、TTL 60 なら次の再評価をまたいで有効なまま残る。
   config_ttl_minutes:
     min: 60
     max: 120

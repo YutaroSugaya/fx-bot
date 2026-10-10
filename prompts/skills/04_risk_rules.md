@@ -9,7 +9,7 @@
 | 緊急停止フラグ | `bot_state.emergency_stop` | true なら no_trade |
 | 当日の損失が上限到達 | `bot_state.daily_pnl_jpy` | `bot_config.risk.max_daily_loss_jpy` 以上の損失なら no_trade (例: qty=1000 で 2,000 JPY) |
 | 連敗中 (4 以上) | `bot_state.consecutive_losses` | `bot_config.risk.max_consecutive_losses` (= 4) 以上なら no_trade |
-| ポジション枠が埋まった | `bot_state.open_positions_count` | この symbol の open 数。**lane 枠 (daytrade 1 / event 2 / scalp・probe 3) 以上**なら同一 symbol の新規は no_trade。枠未満なら同サイズ追加可 (④) |
+| ポジション保有中 | `bot_state.open_positions_count` | この symbol の open 数。**open_positions_count >= 1 なら no_trade** (`risk.max_open_positions` は常に 1) |
 | スプレッド異常 | `current_rate.spread_pips` | hard_limits の max_spread_pips 超なら no_trade |
 | データ不足 | `summary_1h.num_candles` 等 | 1h で 30 本未満なら no_trade |
 
@@ -80,23 +80,19 @@ no_trade:
 ```yaml
 risk:
   quantity: 1000                       # 必ず 1000 で固定 (= 0.1 lot)
-  max_open_positions: 3                # lane で決める (daytrade 1 / event 2 / scalp・probe 3)。④
-  max_trades_in_this_window: 4         # 2〜5 の範囲 (スキャ 60-120分窓)。連敗中は 2 に
-  max_loss_in_this_window_jpy: 1000    # 750〜1500 の範囲 (SL 6-15pips × 1000通貨 = 60-150円/trade × ~5 trades)
+  max_open_positions: 1                # 常に 1 (下の「ポジション枠」参照)
+  max_trades_in_this_window: 4         # daytrade 1〜2 / scalp・event・probe 3〜5 (hard_limits 上限 5)。連敗中は 2 以下
+  max_loss_in_this_window_jpy: 1000    # 推奨 1000〜3000 (hard_limits 上限 5000)。SL 15pips × 1000通貨 ≒ 150円/trade
 ```
 
-## ポジション枠の考え方 (④ cap 3 を活かす)
+## ポジション枠
 
-bot_config は per-symbol / account-wide とも cap 3。**`risk.max_open_positions` は lane に応じて
-daytrade 1 / event 2 / scalp・probe 3 を出す** (一律 1 にすると
-`open_positions 1 >= cap 1` の reject が大量に出て回転が死ぬ)。
+**`risk.max_open_positions` は常に 1** (bot_config の cap を超えると promote で reject。同 symbol 同 side の
+追加は gate が常に拒否)。
 
-- `open_positions_count < lane 枠`: この symbol で同サイズ (1000 固定) の追加 entry 可。
-  probe/scalp は「抜け/初動を枠まで並べて何度も試す」設計なので複数同時保有が正。
-- `open_positions_count >= lane 枠`: この symbol は no_trade。別 symbol は account-wide gate が管理。
-- **枠を増やしてもナンピンにはしない**: ロットは 1000 固定、負け後の建て増し・averaging down は禁止
-  (下の「ナンピン厳禁」参照)。許可するのは同サイズの並列試行だけ。
-- 同方向 SL が 2 回出た方向は、その日その方向を止める (これは枠とは別の損失ガード、従来通り維持)。
+- `open_positions_count >= 1`: この symbol は no_trade。別 symbol は account-wide gate が管理する。
+- lane (daytrade / scalp / event / probe) は TP/SL/MaxHold の tier を決める区分で、ポジション枠ではない。
+- 同方向 SL が 2 回出た方向は、その日その方向を止める (これは枠とは別の損失ガード)。
 
 ## 過剰売買防止
 
@@ -104,12 +100,10 @@ daytrade 1 / event 2 / scalp・probe 3 を出す** (一律 1 にすると
 - scalp/event/probe lane は 3〜5 トレードを基本ライン
 - 直近で連敗していれば 2 に絞る
 - ボラが高い (`volatile`) ときは max_trades を上げない。むしろ no_trade を選ぶ
-- cap に達して reject が多発しているときは 4〜5 も許容 (Paper 段階は edge 収集優先)
+- max_trades cap 到達の reject が多発しているときは 4〜5 も許容 (hard_limits 上限 5 は超えない)
 
-## ナンピン / マーチンゲール 厳禁 (④ で「枠まで並列試行」を許可した上での線引き)
+## ナンピン / マーチンゲール 厳禁
 
 - **ロットを増やす提案 → 出さない** (`risk.quantity` は常に 1000 固定 = 0.1 lot)
-- **損失後に取り返すための建て増し / averaging down → 禁止**
-- 一方で **同サイズ (1000) の probe/scalp を lane 枠 (最大 3) まで並べる**のは許可 (= ナンピンではない)。
-  これは「抜け/初動の試行回数を増やす」probe lane の設計であって、ロット増でも損失補填でもない。
+- **損失後に取り返すための建て増し / averaging down → 禁止** (同 symbol 同 side の追加は gate も拒否する)
 - `risk.quantity` は常に 1000 固定 (= 0.1 lot。絶対に変えない)

@@ -8,7 +8,7 @@
 - [strategy/engine.go](../../backend/internal/domain/strategy/engine.go) の未知 strategy 名 → no_trade フォールバックは保持
 - **Live モードで TP/SL は必ず GMO 側に置く** (Bot 内 OnTick 監視のみで損切りする設計は禁止)。新規は成行 (MARKET) で建て、約定後に OCO を付ける (broker adapter は IFDOCO 一括発注にも対応しているが、発注経路では使っていない)
 - 外部ポジション (`source=external_broker`) は `max_open_positions` カウント対象外、TP/SL/MaxHold 管理対象外、強制決済ボタン非表示。bot が触らない不可侵 inventory として扱う
-- `runtime/emergency_stop.flag` がある間は新規エントリーしない (自動ループは各サイクル冒頭で確認する。LLM 判断ループは LLM も呼ばない)
+- `runtime/emergency_stop.flag` がある間は新規エントリーしない (新規は risk Gate が拒否する。サイクル冒頭で確認して LLM も呼ばずに止まるのは LLM 判断ループだけで、advisor / advisor v2 は claude を呼んだうえで新規が拒否される)
 
 ## 2. 撤退ライン (例)
 
@@ -28,7 +28,7 @@
 | 症状 | 原因 | 対策 |
 |---|---|---|
 | `read bot_config: no such file or directory` | `cd backend && go run ./cmd/bot` を素で打った (既定パス `configs/…` は起動ディレクトリ相対で、`backend/` には無い) | `make start` / `make backend` を使う (Makefile が `.env` と `../configs/…` のパスを渡す)。直接起動するなら `BOT_CONFIG_PATH` / `HARD_LIMITS_PATH` 等を `backend/` からの相対で渡す |
-| 起動はするが何も建てない (判断が `no_active_config` で終わる) | 起動した mode (`bot.mode`) の active strategy config が DB に無い | `bash scripts/seed_active_config.sh --apply [--mode …] configs/<file>.yaml` → bot 再起動 ([CONFIG.md §4.1](CONFIG.md)) |
+| 起動はするが何も建てない (起動ログに `active_config_loaded_from_db` が出ない。LLM 判断ループなら判断が `no_active_config` で終わる) | 起動した mode (`bot.mode`) の active strategy config が DB に無い (このとき warn は出ない) | `bash scripts/seed_active_config.sh --apply [--mode …] configs/<file>.yaml` → bot 再起動 ([CONFIG.md §4.1](CONFIG.md)) |
 | active config を差し替えたのに挙動が変わらない | active config は起動時にしか読まれない | bot を再起動する |
 | `claude not found` | claude CLI 未インストール | `npm install -g @anthropic-ai/claude-code` |
 | `advisor_run status=cli_error` (auth 系) | claude のセッションが切れた | `claude` 単体で起動して再ログイン |

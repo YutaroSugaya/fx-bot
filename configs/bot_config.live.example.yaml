@@ -4,9 +4,10 @@
 #   1. このファイルを configs/bot_config.live.yaml にコピーする (gitignored)
 #   2. .env に LIVE_TRADING_ENABLED=true / LIVE_CONFIRM_SYMBOLS=<csv> と
 #      GMO_API_KEY / GMO_API_SECRET をセット
-#   3. `BOT_CONFIG_PATH=../configs/bot_config.live.yaml make start`
+#   3. .env の BOT_CONFIG_PATH を ../configs/bot_config.live.yaml にして make start
+#      (.env に書いた値はコマンドの前に付けた環境変数より優先されるので、.env 側を書き換える)
 #
-# tracked の configs/bot_config.yaml は常に paper_config 固定 (regression test
+# tracked の configs/bot_config.yaml は live_config にならない (regression test
 # が CI でガード)。Live を走らせる責任はこの override ファイルを参照させる
 # 運用判断に閉じている。
 #
@@ -18,8 +19,9 @@
 #       (= 新規 symbol を env 更新せずに Live に混ぜないため)
 #   - GMO_API_KEY=<key>
 #   - GMO_API_SECRET=<secret>
-# 1 つでも欠けると bot は paper_config に自動降格し WARN ログを出す
-# (backend/internal/app/live_guard.go)。
+# LIVE_TRADING_ENABLED / LIVE_CONFIRM_SYMBOLS が 1 つでも欠けると bot は paper_config に自動降格し
+# WARN ログを出す (backend/internal/app/live_guard.go)。GMO_API_KEY / GMO_API_SECRET が欠けると
+# 降格ではなく起動しない (backend/cmd/bot/exec_broker.go)。
 #
 # ⚠️ エッジ(コスト込みで正の期待値)は確認できていない。動かす前に README の「検証の進め方と結論」を読むこと。
 
@@ -29,7 +31,9 @@ bot:
 
 symbols:
   - USD_JPY
-  # multi-symbol を有効化する場合は JPY quote のみ。
+  # multi-symbol を有効化する場合、advisor が選ぶ戦略 (momentum_pullback / breakout_follow /
+  # range_breakout_probe) は pip を 0.01 で固定している箇所があるので JPY quote 専用。他の戦略は
+  # USD quote のペアも扱える (決済損益は quote→JPY に換算する)。
   # LIVE_CONFIRM_SYMBOLS env を全 symbol で更新すること (順不同、SET 一致)。
 
 # LLM(claude CLI)の定期呼び出しは opt-in。使うなら true(利用料・利用枠を消費する)。

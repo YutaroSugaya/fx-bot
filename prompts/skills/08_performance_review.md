@@ -57,6 +57,9 @@
 | stop_loss | <n> | <-> | <-> |
 | max_hold | <n> | <±> | <±> |
 
+上の 3 つ以外の close_reason (early_exit / ratchet_takeprofit / ratchet_stoploss / session_flatten /
+broker_close / manual / reconcile_cold_close) も件数があれば行を足す。
+
 **判定**:
 - TP 比率が 30% 未満 → エントリーの質が悪い (= 戦略の edge 不足)
 - max_hold 比率が 40% 超 → TP 設定が遠すぎる (skill 03 で TP 下げ検討)
@@ -72,7 +75,7 @@
 
 代表的な reject reason と対応:
 - `cooldown after_loss until ...`: 連敗後の cooldown 発火 → 想定通り、変更不要
-- `spread X > cap Y`: ボラ期にスプレッド広がり → 0.5pips → 0.7pips 緩和を検討
+- `spread X > cap Y`: スプレッド拡大帯の見送り → 基本は想定通り。cap (`entry.max_spread_pips`) を広げるなら hard_limits.max_spread_pips (0.3〜3.0) の範囲内で、skill 07 の TP>=3×friction を満たす場合だけ検討
 - `consecutive_losses N >= cap M`: 連敗ストップ発火 → 想定通り
 - `cooldown after_take_profit until ...`: TP 直後の再エントリー試行が多すぎる → max_trades_in_window 下げ
 - `direction_buy_only_blocks_short`: Claude が config と逆方向 signal を出した → prompt 改善

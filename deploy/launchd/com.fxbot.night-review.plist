@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- fxbot 夜間 read-only 定点観測レポート。
-     毎日 04:30 JST (db-backup 03:00 の後) に night-review-cron.sh を実行し、
+     毎日 04:30 JST に night-review-cron.sh を実行し、
      ~/.fxbot/reports/night_review_YYYY-MM-DD.md を生成する。DB 書込なし。 -->
 <plist version="1.0">
 <dict>

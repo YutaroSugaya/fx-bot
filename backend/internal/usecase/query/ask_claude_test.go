@@ -14,7 +14,7 @@ import (
 func quiet() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
 func TestAskClaudeQuery(t *testing.T) {
-	// A1: tests use the file artifact adapter (not direct os.WriteFile)
+	// tests use the file artifact adapter (not direct os.WriteFile)
 	// so they exercise the same boundary the wiring layer does.
 	dir := t.TempDir()
 	seededStore := artifact.NewFileMarketSummaryStore(dir + "/summary.json")

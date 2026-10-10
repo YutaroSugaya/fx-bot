@@ -33,7 +33,7 @@ func newAdmission(t *testing.T, posRepo port.PositionRepository, tradeRepo port.
 	}, mu
 }
 
-// E2 fix: emergency_stop blocks both auto and manual entries unconditionally.
+// emergency_stop blocks both auto and manual entries unconditionally.
 func TestEntryAdmission_EmergencyStopBlocksManualOverride(t *testing.T) {
 	flag := filepath.Join(t.TempDir(), "emergency_stop.flag")
 	if err := safety.Trip(flag, "test_setup"); err != nil {
@@ -63,7 +63,7 @@ func TestEntryAdmission_EmergencyStopBlocksManualOverride(t *testing.T) {
 	}
 }
 
-// E1 fix: auto entry is denied when, AT THE LOCK CHECK, OpenPositions has
+// auto entry is denied when, AT THE LOCK CHECK, OpenPositions has
 // already reached the cap (e.g. a manual entry committed between snapshot
 // and lock).
 func TestEntryAdmission_AutoBlockedWhenPositionsAtCap(t *testing.T) {

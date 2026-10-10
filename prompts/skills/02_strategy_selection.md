@@ -4,11 +4,11 @@
 **range_reversion は廃止済み**。レンジ相場で逆張りはしない。
 ただし range / 弱 trend でも、レンジ端で抜け前に小さく入る `range_breakout_probe` は probe lane として使う。
 
-> **③ range_breakout_probe の適用範囲 (最重要)**
+> **range_breakout_probe の適用範囲 (最重要)**
 > `range_breakout_probe` は **range / 圧縮 (unclear で低 vol) かつ 1h range 8〜24pip の明確なレンジ端**専用。
 > **6h/24h が明確な trend_up / trend_down のときは probe を chosen にしない** — トレンドでは
 > `momentum_pullback` (押し目/戻り) か `breakout_follow` を選ぶ。trend 地合いで probe を選ぶと、
-> 押し戻りのチョップに飲まれて churn 負けしやすい。トレンドで他に確信が持てなければ `no_trade`。
+> 押し戻りのチョップに飲まれて churn 負け (= 小さな勝ちとフル SL の繰り返しで削られる負け方) しやすい。トレンドで他に確信が持てなければ `no_trade`。
 
 ## lane の前提
 
@@ -97,26 +97,25 @@ trend_up で正しく momentum_pullback を選んでも、急騰が走り切っ�
 ※ 一方通行で押し目が来ない強トレンドはこのフィルタで取り逃すが、その初動は breakout_follow /
 イベント攻めモード (event_calendar policy:breakout) 側で取る役割分担。
 
-## 確信度の閾値 (データ蓄積フェーズ)
+## 確信度の閾値
 
 - 確信度 **55% 以上** の戦略があれば実行
-- 確信度 **35-55%** でも emergency (Step 1 該当) でなければ momentum_pullback で push。デイトレは中長期トレンドに乗る価値が高い
-- 確信度 **< 35%** または emergency (Step 1) のみ no_trade
+- 確信度 **35-55%** でも emergency (Step 1 該当) でなければ、daytrade ではなく scalp lane の
+  momentum_pullback (短い TP/SL) で小さく試してよい
+- 確信度 **< 35%** または emergency (Step 1) は no_trade (なお `market_regime.confidence` < 0.35 の enabled config は Go validator が reject する)
 
-過剰売買は避けるが、**取引機会ゼロの方が長期 EV はマイナス** (データが溜まらない / 戦略改善できない / 撤退判断もできない)。
-現フェーズの目標は「PF を上げる」より「サンプル数を増やして失敗パターンを学習する」こと。
+過剰売買は避けるが、条件を満たす機会まで no_trade に倒し続けると、戦略を評価するためのサンプルが溜まらない。
 ただし daytrade と scalp/probe を混ぜない。弱い trend で TP16〜20 / SL13〜15 の
 daytrade パラメータを使うのは避け、scalp/probe lane に落として短く試す。
 
 ## allowed_hours_jst (時間帯フィルタ)
 
-**データ蓄積フェーズ: 原則 `allowed_hours_jst: []` (= 全時間帯許可) を デフォルトとする。**
+**原則 `allowed_hours_jst: []` (= 全時間帯許可) をデフォルトとする。**
 
-### 過去の知見 (現フェーズではデフォルトに採用しない)
+### 時間帯フィルタを既定にしない理由
 
-過去の backtest で以下が判明:
-- 3 ヶ月 (USD/JPY 1m) で momentum_pullback / breakout_follow ともに **PF<1.0** で net 負け
-- **時間帯別 PF はフィルタ変更で大きく反転する** (例: momentum_pullback の 08 JST が無フィルタで +117 JPY/trade → hour filter 入れると -1 JPY/trade)
+- **時間帯別の backtest 成績はフィルタの有無で大きく反転しやすい** (ある時間帯が無フィルタでは
+  プラスでも、hour filter を入れるとトントン以下になる、ということが起きる)
 - 原因: `max_open_positions=1` による position state coupling = selection bias。「ある時間帯の trade が良かった」のは「直前まで position を持ってたから良いタイミングだけ拾えた」だけ
 
 → **時間帯フィルタで trade を絞るより、全時間帯で trade して per-trade の結果を直接観察する方が学習効率が高い**。

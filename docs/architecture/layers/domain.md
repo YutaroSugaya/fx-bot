@@ -55,7 +55,7 @@ mutex 禁止。新規 stateful buffer を作る場合は、まず本ファイル
 
 - [domain/market/](../../../backend/internal/domain/market/) — Tick / Candle / Aggregator / Stats / Summary (pip size は tick.go 内)
 - [domain/strategy/](../../../backend/internal/domain/strategy/) — Engine + 各戦略 (momentum_pullback / breakout_follow / range_breakout_probe / mtf_pullback / ma_pullback (+v2) / trend_follow / daily_trend / london_breakout / gotobi_fix / signature_breakout / exhaustion_fade / llm_decision / no_trade)。Signal を返す純粋関数 (実在一覧は同パッケージのファイルが正)
-- [domain/position/](../../../backend/internal/domain/position/) — ExitPrices / ComputeTPSLPrices / State 遷移 ([STATE_MACHINE.md](../../runtime/STATE_MACHINE.md))
+- [domain/position/](../../../backend/internal/domain/position/) — ComputeTPSLPrices / ComputeClosePnL / State 遷移 ([STATE_MACHINE.md](../../runtime/STATE_MACHINE.md))
 - [domain/order/](../../../backend/internal/domain/order/) — PlaceOrderRequest / Order / Execution
 - [domain/risk/](../../../backend/internal/domain/risk/) — Gate (cooldown / max_open_positions / daily_loss / consecutive_losses 判定)
 - [domain/clock/](../../../backend/internal/domain/clock/) — `Clock` interface (testability。`time.Now()` 直書き禁止の代替)

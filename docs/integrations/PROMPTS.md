@@ -22,7 +22,8 @@ Claude advisor が `strategy_config.yaml` を生成するときに使う prompt 
 [prompts/generate_strategy_config.md](../../prompts/generate_strategy_config.md):
 
 - bot から渡される `latest_summary.json` を入力に取る
-- 9 個の skill (`prompts/skills/01-09`) を Task ツールで並列起動して結論を集約する (Claude 内部での並列、claude_cli.go から見れば single subprocess)
+- root は 4 つの subagent (`risk-auditor` / `regime-classifier` / `strategy-selector` / `tpsl-designer` = skill 01〜04) を Task ツールで並列起動し、その結果を統合したあと、自分で skill 07 (コスト監査) → 05 (出力スキーマ) → 06 (再評価間隔) を Read して最終 YAML を組む (Claude 内部での並列、claude_cli.go から見れば single subprocess)
+- skill 08 / 09 は advisor の毎回のフローからは呼ばれない (手動で使う)
 - 最終出力は YAML 1 本 (= 1 つの `strategy_config`)
 
 ### スタンドアロンプロンプト (advisor cycle 外部、運用補助用)
@@ -46,12 +47,12 @@ Claude advisor が `strategy_config.yaml` を生成するときに使う prompt 
 | 01 | `01_market_regime.md` | 市場状態判定 (range / trend_up / trend_down / volatile / unclear) |
 | 02 | `02_strategy_selection.md` | 上記 regime から strategy 選択 (momentum_pullback / breakout_follow / range_breakout_probe / no_trade) |
 | 03 | `03_tp_sl_rules.md` | TP / SL pips の決定ロジック (ATR / 直近 high low / volatility) |
-| 04 | `04_risk_rules.md` | quantity / max_hold / cooldown の調整 |
+| 04 | `04_risk_rules.md` | 強制 no_trade のトリガー判定と risk セクションの推奨値 |
 | 05 | `05_output_format.md` | YAML 出力スキーマ + hard_limit 範囲 |
 | 06 | `06_recheck_cadence.md` | `next_advisor_run_in_minutes` の決定 |
 | 07 | `07_execution_cost.md` | spread / slippage を考慮した entry 抑止 |
-| 08 | `08_performance_review.md` | 直近の PnL / consecutive_losses を踏まえた調整 |
-| 09 | `09_symbol_selection.md` | (将来用) 複数 symbol 切替 |
+| 08 | `08_performance_review.md` | 週次 / 月次の成績レビュー (手動で使う。advisor のフローからは呼ばれない) |
+| 09 | `09_symbol_selection.md` | 追加する通貨ペアの評価 (手動で使う。advisor のフローからは呼ばれない) |
 
 ---
 
@@ -117,14 +118,14 @@ next_advisor_run_in_minutes: <int>          # omitempty
 
 ## 4. 入力フォーマット (= bot が Claude に渡す JSON)
 
-`runtime/ai_input/latest_summary.json` — [MarketSummary](../../backend/internal/domain/market/summary.go) struct の JSON シリアライズ:
+`runtime/ai_input/latest_summary.json` (bot_config の symbols が 2 つ以上なら `latest_summary_<SYMBOL>.json`) — [MarketSummary](../../backend/internal/domain/market/summary.go) struct の JSON シリアライズ:
 
 - `symbol` / `time` / `next_valid_from`
 - `current_rate`: bid / ask / spread / mid
 - `summary_15m` / `summary_1h` / `summary_6h` / `summary_24h`: 各 window の high / low / range / trend / spread 統計
 - `bot_state`: EmergencyStop / CurrentPosition (optional) / OpenPositionsCount / DailyPnLJPY / ConsecutiveLosses / TradesToday / TradesInCurrentWindow
-- `recent_trades`: 直近 N 件の PnL (performance_review skill 用)
-- `recent_rejections`: 直近の signal_rejections (performance_review / risk_rules 用)
+- `recent_trades`: 直近 N 件の PnL (skill 01 / 04 と root の統合判断が読む)
+- `recent_rejections`: 直近の signal_rejections (skill 01 と root の統合判断が読む)
 - `hard_limits`: 現行 HardLimits の各レンジ (Claude に渡してレンジ内出力させる)
 - `allowed_strategies`: validator が受け付ける strategy 名のホワイトリスト
 

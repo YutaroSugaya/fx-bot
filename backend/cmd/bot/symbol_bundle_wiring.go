@@ -390,7 +390,7 @@ func buildSymbolBundle(
 			})
 		},
 	}
-	// D-1: cycle 完了ごとに status を bot-wide monitor に転送。
+	// cycle 完了ごとに status を bot-wide monitor に転送。
 	if deps.ParseErrorMonitor != nil {
 		advisorCycle.OnRunComplete = func(s port.AdvisorRunStatus, usageLimited bool) {
 			deps.ParseErrorMonitor.Record(symbol, s, usageLimited)

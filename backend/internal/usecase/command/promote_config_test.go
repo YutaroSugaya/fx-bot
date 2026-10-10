@@ -85,7 +85,7 @@ func newPromoter(t *testing.T, now time.Time) (*Promoter, *backtest.InMemoryStra
 
 	strat := backtest.NewInMemoryStrategyConfigRepo()
 	val := backtest.NewInMemoryValidationEventRepo()
-	// A1: test wires the real file adapter pointed at the tempdir so the
+	// test wires the real file adapter pointed at the tempdir so the
 	// existing assertions on active.yaml / next.yaml file presence still work.
 	store := artifact.NewFileStrategyConfigStore(nextPath, activePath)
 	p := NewPromoter(v, strat, val, store, config.ModePaperConfig, "auto")

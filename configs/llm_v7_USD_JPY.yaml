@@ -1,8 +1,8 @@
 # llm-v7 (USD_JPY) — LLM 判断ループ用の strategy config
 # ------------------------------------------------------------------
-# 中身は exhaustion-fade-usdjpy-probe-v1 と同一の exhaustion_fade ブロック(JST {4,10,11} 時のみ発火)。
+# 中身は exhaustion_fade 戦略のブロック(entry.allowed_hours_jst により JST 4/10/11 時のみ発火)。
 # bot_config.llm_decision.exclude_hours_jst[USD_JPY]=[4,10,11] と組み合わせると、その 3 時間だけ
-# engine がこの戦略を回し、残り 21h は LLM ループが USD/JPY を管理する(住み分け)。差分は 2 点:
+# engine がこの戦略を回し、残り 21h は LLM ループが USD/JPY を管理する(住み分け)。設定の要点は 2 つ:
 #   1. max_loss_in_this_window_jpy = 0(window kill-switch 無効)。
 #      このカウンタは valid_from 起点でリセットされない累積値なので、有効にすると一定額の負けで
 #      その config が恒久的に新規を止める(ログ上は無言の凍結になる)。
@@ -25,7 +25,7 @@ enabled: true
 market_regime:
   type: "volatile"
   confidence: 0.50
-  reason: "v7 re-seed; exhaustion fade probe (JST 4/10/11 のみ)。他時間帯のエントリー判断は LLM ループが担当"
+  reason: "LLM 判断ループの active(FK とリスク設定の受け皿)。exhaustion_fade は JST 4/10/11 時のみ、他の時間は LLM ループが判断"
 
 strategy:
   name: "exhaustion_fade"

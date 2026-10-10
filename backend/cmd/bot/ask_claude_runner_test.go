@@ -50,7 +50,7 @@ func TestNewClaudeRunner_IsolatesEnvAndHooks(t *testing.T) {
 	if strings.Contains(out, "must-not-leak") {
 		t.Errorf("GMO_API_SECRET leaked into the claude process: %q", out)
 	}
-	if !strings.Contains(out, `[--settings][{"disableAllHooks":true}]`) {
-		t.Errorf("repo hooks must be disabled for ask-claude: %q", out)
+	if !strings.Contains(out, `[--settings][{"disableAllHooks":true,`) || !strings.Contains(out, `"Read(./.env)"`) {
+		t.Errorf("ask-claude must run with the isolation settings (hooks off, secret files unreadable): %q", out)
 	}
 }

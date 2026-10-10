@@ -46,6 +46,7 @@ for PAIR in "${PAIRS[@]}"; do
     fi
 
     zip="$OUT/.${PAIR}_${YEAR}.zip"
+    sleep 1
     if ! curl -fsSL -o "$zip" -X POST "$base/get.php" \
          -H "Referer: $ref" \
          --data "tk=${tk}&date=${YEAR}&datemonth=${YEAR}&platform=ASCII&timeframe=M1&fxpair=${PAIR}"; then

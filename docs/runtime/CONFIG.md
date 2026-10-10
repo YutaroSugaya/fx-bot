@@ -14,10 +14,10 @@
 | `configs/hard_limits.yaml` | 戦略 config が出せる値の絶対上下限 (quantity / TP / SL / max_hold / per-trade 損失 etc.) | このファイル自身が SoT |
 | `configs/event_calendar.yaml` | 経済指標の発表前後の entry freeze 窓 (手書き。同梱分は記入例)。既定は bot_config と同じディレクトリの `event_calendar.yaml`(`EVENT_CALENDAR_PATH` で変更可) | このファイル自身が SoT (起動時に読む) |
 | `configs/<strategy>_<SYMBOL>.yaml` | 固定戦略の strategy config。`scripts/seed_active_config.sh` で DB の active に据える (§4.1) | **DB に入れたものが SoT** |
-| `configs/strategy_config.active.yaml` | DB と同期する artifact | **DB が SoT。bot 起動時は DB から読む** |
-| `configs/strategy_config.next.yaml` | advisor が直近書き出した提案 (validator 待ち) | 議論用 artifact のみ |
+| `configs/strategy_config.active.yaml` | DB と同期する artifact (symbols が 2 つ以上なら `strategy_config.active_<SYMBOL>.yaml`) | **DB が SoT。bot 起動時は DB から読む** |
+| `configs/strategy_config.next.yaml` | advisor が直近書き出した提案 (validator 待ち。symbols が 2 つ以上なら `strategy_config.next_<SYMBOL>.yaml`) | 議論用 artifact のみ |
 | `runtime/emergency_stop.flag` | 存在する間は新規エントリ全停止 | このファイル自身が SoT |
-| `runtime/ai_input/latest_summary.json` | 1 分ごと更新の市場サマリ (Claude 入力) | minuteLoop が随時更新 |
+| `runtime/ai_input/latest_summary.json` | 1 分ごと更新の市場サマリ (Claude 入力。symbols が 2 つ以上なら `latest_summary_<SYMBOL>.json`) | minuteLoop が随時更新 |
 | `.env` | DATABASE_URL / GMO_API_KEY / LIVE_* / DASHBOARD_USER/PASS など | このファイル自身が SoT |
 
 ---
@@ -109,10 +109,14 @@ LLM が一定間隔で trade / no_trade を判断し、既存の発注経路 (ri
   `session_flatten_jst` (毎朝この JST 時刻に全 OPEN 玉を `session_flatten` で手仕舞う)
 - 条件付きエントリー: `arm_enabled` / `arm_max_distance_pips`
 - イベント再判断: `event_retrigger` (決済・急変動で判断サイクルを前倒し)
-- Reflexion 反省ループ: `reflection_enabled` (false で playbook の自動書換を止める) /
+- Reflexion 反省ループ: `reflection_enabled` (省略時 true。false で playbook の自動書換を止める) /
   `reflection_interval_minutes` / `reflection_min_trades` / `reflection_start_at`
-- 互換のため struct に残る項目: `quantity_by_symbol` / `htf_trend_veto_exempt_{sell,buy}_rpos` /
-  `htf_trend_veto_lookback` (不使用・旧 yaml の parse 互換のみ)
+- シンボル別の上書き: `quantity_by_symbol` (シンボルごとの発注数量) /
+  `htf_trend_veto_exempt_{sell,buy}_rpos` (24h レンジ内の位置で `htf_trend_veto` を免除する境界。シンボル別 map)
+- 決定論戦略との時間帯の住み分け: `exclude_hours_jst` (シンボル → JST の時間。その時間は LLM ループが判断せず、
+  active config の戦略を決定論エンジンが回す)
+- `decision_single_agent` (省略時 true = 1 つの claude で判断。false で subagent パネル)
+- 不使用: `htf_trend_veto_lookback` (旧 yaml の parse 互換のみ)
 
 `runtime/emergency_stop.flag` がある間、判断サイクルは LLM を呼ばずに stage `emergency_stop` で終わる。
 
@@ -181,26 +185,40 @@ hard_limits:
 
 [backend/internal/config/strategy_config.go](../../backend/internal/config/strategy_config.go) で parse。
 
+YAML は nested。mode は YAML に持たず、seed / promote するときに決まる (`seed_active_config.sh --mode`)。
+全キーと advisor 出力の契約は [PROMPTS.md §3](../integrations/PROMPTS.md)、記入例は
+[configs/strategy_config.active.example.yaml](../../configs/strategy_config.active.example.yaml)
+(advisor 形式) と [configs/trend_v4_USD_JPY.yaml](../../configs/trend_v4_USD_JPY.yaml) (固定戦略)。抜粋:
+
 ```yaml
-config_id: "20260520-070000-usdjpy"
-mode: paper_config
+config_id: "<一意な ID>"
+generated_at: "<RFC3339>"
+valid_from: "<RFC3339>"
+valid_until: "<RFC3339>"        # 固定 TP/SL の config は valid_from から 60〜120 分 (config_ttl_minutes)
 symbol: USD_JPY
 enabled: true
-market_regime:
-  type: range | trend_up | trend_down | volatile | unclear
-  confidence: 0.0-1.0
-strategy_name: <registered strategy>   # 実在一覧は backend/internal/domain/strategy/engine.go の Register 参照
-valid_from: 2026-05-20T07:00:00Z
-valid_until: 2026-05-20T08:00:00Z
-take_profit_pips: 20
-stop_loss_pips: 15
-max_hold_minutes: 120
-extension_max_minutes: 30
-extension_unrealized_pips_threshold: 5.0
-quantity: 1000
-allowed_hours_jst: [9, 10, 11, 14, 15]
-next_advisor_run_in_minutes: 60
-# ... + strategy 個別パラメータ
+market_regime: { type: unclear, confidence: 0.70, reason: "<自由記述>" }
+strategy:
+  name: trend_follow            # 登録済み戦略。一覧は backend/internal/domain/strategy/engine.go の Register
+entry:
+  max_spread_pips: 1.5
+  require_breakout: false
+  direction: both               # buy_only | sell_only | both | none
+  # allowed_hours_jst: [4, 10, 11]   # 任意。この JST 時間だけ新規を許す
+exit:
+  exit_policy: strategy_computed  # 出口を戦略が算出する (下の TP/SL は validator 用の placeholder。TTL 検査も免除)
+  take_profit_pips: 100.0
+  stop_loss_pips: 30.0
+  max_hold_minutes: 43200
+  ratchet_arm_pips: 0.0
+  ratchet_giveback_pips: 0.0
+risk:
+  quantity: 1000
+  max_open_positions: 1
+  max_trades_in_this_window: 0
+  max_loss_in_this_window_jpy: 2000   # config 単位の損失 kill-switch (0 = 無効)
+no_trade: { enabled: false, reason: "" }
+# next_advisor_run_in_minutes: 30   # advisor 形式のみ
 ```
 
 ### DB SoT のルール
@@ -210,7 +228,9 @@ next_advisor_run_in_minutes: 60
   読込時に起動時検証 (parse + `ValidateStatic`: schema / hard_limits / 戦略 whitelist) を掛ける。
 - DB 読込・検証の失敗時に YAML へ fallback はしない。Live は起動を中断 (fail-closed)、paper は WARN
   (`active_config_db_load_failed_starting_without_active`) を出して active 無しで起動する。
-- active 行が無い symbol は何も建てない (エントリー判断は `no_active_config` でスキップされる)。
+- active 行が無い symbol は何も建てない。GetActive / LoadActiveFromDB は (nil, nil) を返し、何もログを出さない
+  (決定論エンジンの価格ループは黙って見送り、LLM 判断ループは stage `no_active_config` で終わる)。
+  seed できたかは起動ログの `active_config_loaded_from_db` で確かめる。
 - advisor の promote 成功後に `configs/strategy_config.active.yaml` を best-effort で同期 (artifact)
 - 既存ポジションは **建てた時点の config を凍結保存**
 
@@ -234,8 +254,8 @@ bash scripts/seed_active_config.sh --print-sql configs/<file>.yaml
 - 同じ (mode, symbol) の既存 active を `expired` にしてから upsert する (行は消さない。過去の trade の FK を保つ)。
 - `--mode` は `paper_config` (既定) か `live_config`。bot が読むのは `bot.mode` と同じ mode の行だけ。
 - **active config は起動時にしか読まれない**。seed したら bot を再起動する (`make start`)。
-  paper は active 行が無くても起動を続けるが何も建てず (エントリー判断が `no_active_config` で終わる)、
-  live は active 行の読込・検証に落ちると起動しない。
+  active 行が無い symbol は、paper / live とも起動は続くが何も建てない (ログは出ない。確認は起動ログの
+  `active_config_loaded_from_db`)。active 行の読込・検証に落ちると、paper は WARN を出して続行し、live は起動しない。
 
 ### partial unique index (0001_init)
 
@@ -269,8 +289,8 @@ advisor 経路では各段階の pass/fail が `config_validation_events` テー
 
 [backend/internal/app/active_config.go](../../backend/internal/app/active_config.go):
 
-- `Get()` で現在の active config を atomic に返す (sync.RWMutex)
-- `Set(parsed)` で promote 成功時に更新
+- `Get(symbol)` で symbol の現在の active config を返す (`sync.Map`。mutex は持たない)
+- `Set(symbol, cfg)` で起動時の読込と promote 成功時に更新
 - worker / handler / advisor すべてここ経由で active を参照
 
 ---

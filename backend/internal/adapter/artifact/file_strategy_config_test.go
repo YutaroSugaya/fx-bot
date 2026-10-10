@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// A1 fix: FileStrategyConfigStore implements port.StrategyConfigArtifactStore.
+// FileStrategyConfigStore implements port.StrategyConfigArtifactStore.
 
 func TestFileStrategyConfigStore_PromoteActive_AtomicSwap(t *testing.T) {
 	dir := t.TempDir()

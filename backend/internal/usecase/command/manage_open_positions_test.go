@@ -81,9 +81,9 @@ func TestEvaluateExit_MaxHoldExtension(t *testing.T) {
 		{"no extension at soft deadline closes", 240, 100.00, 100.01, 0, 0, "max_hold"},
 		// Extension configured, within window, flat → wait
 		{"flat at soft + 10min: wait", 250, 100.01, 100.02, 60, 5, ""},
-		// ⑧: winning during extension → hold (let the trend run). BUY mid≈100.075 = +7.5 pips.
+		// winning during extension → hold (let the trend run). BUY mid≈100.075 = +7.5 pips.
 		{"winning during extension: hold (let it run)", 250, 100.07, 100.08, 60, 5, ""},
-		// ⑧: losing beyond -threshold during extension → close. BUY mid≈99.925 = -7.5 pips < -5.
+		// losing beyond -threshold during extension → close. BUY mid≈99.925 = -7.5 pips < -5.
 		{"losing beyond threshold during extension: close", 250, 99.92, 99.93, 60, 5, "max_hold"},
 		// Past hard deadline regardless → close
 		{"past hard deadline (soft+extension) closes regardless", 320, 100.01, 100.02, 60, 5, "max_hold"},

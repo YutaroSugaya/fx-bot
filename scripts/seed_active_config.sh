@@ -2,7 +2,8 @@
 # seed_active_config.sh — strategy config YAML を DB の active config として据える。
 # ------------------------------------------------------------------------
 # bot は起動時に DB の strategy_configs(status='active', mode=<bot.mode>)を symbol ごとに 1 本読む。
-# active が無いシンボルは何も建てない(paper は warn して続行・live は起動しない)。
+# active が無いシンボルはログを出さずに何も建てない(warn が出るのは DB の読込・検証に失敗したときだけで、
+# そのとき paper は続行・live は起動しない)。seed 済みかは起動ログの active_config_loaded_from_db で確かめる。
 # このスクリプトは:
 #   1. backend の cmd/config-check で、起動時と同じ検証(parse + schema / hard_limits /
 #      戦略 whitelist)を掛ける。1 本でも落ちたら何もしない。
@@ -153,7 +154,11 @@ elif [ "$APPLY" = "1" ]; then
   echo ">> APPLY (COMMIT — DB を変更) mode=${MODE}" >&2
 else
   SQL+="ROLLBACK;"
-  echo ">> DRY-RUN (ROLLBACK — DB は変えない。本適用は --apply) mode=${MODE}" >&2
+  if [ "$PRINT_ONLY" = "1" ]; then
+    echo ">> SQL を表示するだけ(ROLLBACK 付き・DB には触らない。自分の psql で本適用するなら --apply --print-sql) mode=${MODE}" >&2
+  else
+    echo ">> DRY-RUN (ROLLBACK — DB は変えない。本適用は --apply) mode=${MODE}" >&2
+  fi
 fi
 
 if [ "$PRINT_ONLY" = "1" ]; then

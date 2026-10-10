@@ -1,4 +1,4 @@
-# Skill: 再評価間隔 (next_advisor_run_in_minutes) — デイトレード版
+# Skill: 再評価間隔 (next_advisor_run_in_minutes)
 
 `strategy_config` を出すたびに、**「次に再評価してほしい分数」** を 1 つ返す。
 Go の scheduler はこれを読んで、次の advisor cycle までの待ち時間を決める。
@@ -7,7 +7,7 @@ Go の scheduler はこれを読んで、次の advisor cycle までの待ち時
 
 - **平時 = `30`**
 - **急変・経済指標帯・volatile・トレンド明瞭 = `10`** (下記時刻帯テーブル参照)
-- **`bot_state.emergency_stop = true`** のときだけ **`0`** を返す (= scheduler が default fallback)
+- **`bot_state.emergency_stop = true`** のときだけ **`0`** を返す (= scheduler が `bot_config.ai_advisor.interval_minutes` に fallback)
 
 それ以外の cooldown (45 / 60 / 90 / 120 など) は **使わない**。no_trade / unclear / consecutive_losses でも 30 のまま。
 週末も 30 のまま (= bot 自体が weekdays_only で fire しない)。
@@ -33,15 +33,16 @@ Go の scheduler はこれを読んで、次の advisor cycle までの待ち時
 
 ## 出力範囲 / バリデーション
 
-- 範囲: **10 〜 480 分** の整数。10 と 30 は範囲内なので必ず通る。
+- validator の許容値: **0 または 10〜480** の整数 (それ以外は reject)。この skill では 10 / 30 (emergency_stop 時のみ 0) だけを使う。
 - 不明 / 判断不能なら `30` を返す。
 - 値の選定理由は `market_regime.reason` 末尾に「(recheck: 10 min, 指標帯)」や「(recheck: 30 min, 平時)」のように 1 句添える。
 
 ## scheduler 側の挙動 (参考)
 
+- default interval = `bot_config.ai_advisor.interval_minutes` (tracked config では 30)
 - 値 < default interval (例 10) → **event** タグで短縮 fire (AdvisorRunSource = "event")
-- 値 == 30 → **auto** タグで通常 fire (AdvisorRunSource = "auto"、`bot_config.ai_advisor.interval_minutes` と一致)
-- 値 == 0 → bot_config interval に fallback
+- 値 == default interval (30) → **auto** タグで通常 fire (AdvisorRunSource = "auto")
+- 値 == 0 → default interval に fallback
 
 ## サブエージェント呼び出しは不要
 

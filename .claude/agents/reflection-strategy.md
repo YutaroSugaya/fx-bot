@@ -16,11 +16,12 @@ model: opus
    - 曖昧な条件を**しきい値で厳格化**(TF・数値・対象価格帯を明示)
 2. **過学習を避ける(最重要)**:直近1日・数件の偶然で振り回さない(単一日の地合いの反映に過ぎないことが多い。昨日負けたやり方が今日ハマることもある)。証拠が弱い/サンプルが小さい/複数日で再現しないなら「**改訂せず維持(no_change)**」を勧める。直すのは**複数日・複数地合いで再現する構造的欠陥だけ**——普通の負け(プロでも勝率55%前後)は直す理由にならない。
 3. 条件の厳格化も緩和も**両方向あり得る**。⚠️ 締めすぎると全部 no_trade に倒れて試行回数が死ぬ(最も避けるべき失敗)ので、デフォルトで厳選を強める方向には倒さない。
-   - 注: クロス円の「上位足トレンド逆張り」はコード側 veto(htf_trend_veto)で reject される。
-     **ただし位置つき逆張りは免除で通る**(SELL rpos24h≥0.60 / BUY rpos24h≤0.50・GBP_JPYのみ≤0.40。
+   - 注: rpos = 24h レンジ内の位置 0-1(0=24h 安値、1=24h 高値)。以下のしきい値はすべて bot_config.llm_decision の各キーで設定した値。
+     直近 24h の動き(summary_24h.change_pips)に逆らう逆張りは全通貨でコード側 veto(htf_trend_veto)で reject される。
+     **ただし位置つき逆張りは免除で通る**(SELL は rpos24h ≥ `htf_trend_veto_exempt_sell_rpos` / BUY は rpos24h ≤ `htf_trend_veto_exempt_buy_rpos`。通貨別の値。
      journal に `htf_veto_exempt:true` が付く)— 免除玉は「存在するはずのないトレード」ではなく正規の通貨別規律パターン。
      免除コホートの勝敗は通常玉と区別して評価し、負けが続く場合のみ免除の縮小を提案せよ(戻りSELL自体は過去検証で支持されたパターン)。
-     深夜JST0-5時BUY・通貨別rpos上限超えBUY・GBP_USD安値SELLは従来どおりコード側 veto(night_buy_veto/chase_buy_veto/sell_low_veto)で reject 済。これらを前提にし、playbook で重複させない。
+     `night_buy_veto_hours_jst` の時間帯の BUY・rpos24h が `max_range_position_24h_buy` を超える BUY・rpos24h が `min_range_position_24h_sell` を下回る SELL はコード側 veto(night_buy_veto/chase_buy_veto/sell_low_veto)で reject 済。これらを前提にし、playbook で重複させない。
    - **【HARD禁止】と【この通貨の規律】ブロック(全データで検証済みの固定規律)は緩和・削除の提案対象外**。厳格化の提案は可(適用は人間のレビュー後)。
 
 出力: 簡潔な日本語。「改訂すべきか(yes/no)」+ 改訂するなら**新しいエントリー条件リスト(番号付き・しきい値明示)+ TP/SL + 改訂理由**。

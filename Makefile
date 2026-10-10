@@ -50,6 +50,11 @@ AI_OUTPUT_DIR        ?= ../runtime/ai_output
 EMERGENCY_FLAG_PATH  ?= ../runtime/emergency_stop.flag
 MIGRATIONS_DIR       ?= migrations
 CLAUDE_CLI_PATH      ?= claude
+
+# npm(依存パッケージのライフサイクルスクリプト・next dev / build)には bot の秘密を渡さない。
+# 上の export は go run / migrate 用で、npm の子プロセスからは外す。
+NPM := env -u GMO_API_KEY -u GMO_API_SECRET -u DATABASE_URL -u DATABASE_URL_RO \
+       -u BACKTEST_DATABASE_URL -u INTEGRATION_TEST_DB_URL -u DASHBOARD_USER -u DASHBOARD_PASS npm
 # DB backup の保存先 (scripts/db-backup.sh と backup-* / restore-* ターゲットが使う)。
 FXBOT_BACKUP_DIR     ?= $(HOME)/.fxbot/backups
 
@@ -88,7 +93,7 @@ help: ## 全ターゲット一覧
 	@echo "  make fmt            — go fmt ./..."
 	@echo "  make build          — bin/bot, bin/migrate を出力"
 	@echo "  make clean          — bin/, .run/ を削除"
-	@echo "  make clean-runtime  — runtime/ai_input, runtime/ai_output, emergency_stop.flag を削除"
+	@echo "  make clean-runtime  — runtime/ai_input, runtime/ai_output を削除 (緊急停止フラグは残す)"
 
 # ---------------------------------------------------------------------------
 # postgres
@@ -131,7 +136,10 @@ db-logs:
 migrate-up: db-up
 	cd backend && go run ./cmd/migrate up
 
-migrate-down:
+migrate-down: ## 直近の migration を 1 つ戻す(列やテーブルを消しうる。CONFIRM=down が必要)
+	@if [ "$(CONFIRM)" != "down" ]; then \
+	  echo "migrate-down は列やテーブルを消しうる。実行するなら: make migrate-down CONFIRM=down" 1>&2; exit 2; \
+	fi
 	cd backend && go run ./cmd/migrate down
 
 config-drift: ## 指定 YAML と DB の active raw_yaml の差分を検出 (read-only SELECT)。例: make config-drift FILE=configs/trend_v4_USD_JPY.yaml
@@ -165,7 +173,7 @@ backup-now: ## fxbot DB を pg_dump して $(FXBOT_BACKUP_DIR) に保存 (手動
 backup-install: ## launchd 用に scripts/db-backup.sh を ~/.fxbot/ へコピー
 	mkdir -p $(HOME)/.fxbot/logs
 	install -m 0755 scripts/db-backup.sh $(HOME)/.fxbot/db-backup.sh
-	@echo "==> installed $(HOME)/.fxbot/db-backup.sh (launchd の plist はこれを指す)"
+	@echo "==> installed $(HOME)/.fxbot/db-backup.sh (定期実行するなら、これを指す launchd の plist を作る)"
 
 backup-list: ## $(FXBOT_BACKUP_DIR) にある dump 一覧 (新しい順)
 	@ls -lhrt "$(FXBOT_BACKUP_DIR)"/ 2>/dev/null | tail -30 || echo "(no backups yet)"
@@ -210,13 +218,13 @@ backup-restore: ## 最新 dump で fxbot DB を上書き復元 (--clean 付き p
 backend: ## bot だけ foreground 起動
 	cd backend && go run ./cmd/bot
 
-frontend: ## frontend だけ foreground 起動 (初回は npm install も走る)
+frontend: ## frontend だけ foreground 起動 (初回は npm ci も走る)
 	@cd frontend && \
 	 if [ ! -d node_modules ]; then \
 	   echo "==> installing frontend deps (first run)"; \
-	   npm install --silent --no-audit --no-fund; \
+	   $(NPM) ci --silent --no-audit --no-fund; \
 	 fi; \
-	 npm run dev -- -p $(FE_PORT)
+	 $(NPM) run dev -- -p $(FE_PORT)
 
 # ---------------------------------------------------------------------------
 # orchestration: make start / make stop
@@ -288,7 +296,7 @@ start: kill-stale migrate-up ## bot + frontend を一括起動。Ctrl+C で両�
 	@cd frontend && \
 	  if [ ! -d node_modules ]; then \
 	    echo "==> [setup] installing frontend deps (first run)"; \
-	    npm install --silent --no-audit --no-fund; \
+	    $(NPM) ci --silent --no-audit --no-fund; \
 	  fi
 	@echo "==> [fe ] clearing .next cache (Ctrl+C kills can corrupt it -> GET / 500)"
 	@rm -rf frontend/.next
@@ -298,7 +306,7 @@ start: kill-stale migrate-up ## bot + frontend を一括起動。Ctrl+C で両�
 	   BOT_PID=$$!; echo $$BOT_PID > .run/bot.pid; \
 	   printf '{"bot_pid":%s,"tty":"%s","started_at":"%s","user":"%s","host":"%s"}\n' \
 	     "$$BOT_PID" "$$(tty 2>/dev/null || echo unknown)" "$$(date -u +%FT%TZ)" "$$(whoami)" "$$(hostname)" > .run/owner.json; \
-	 ( cd frontend && npm run dev -- -p $(FE_PORT) 2>&1 | awk '{print "[fe ] "$$0; fflush()}' ) & \
+	 ( cd frontend && $(NPM) run dev -- -p $(FE_PORT) 2>&1 | awk '{print "[fe ] "$$0; fflush()}' ) & \
 	   FE_PID=$$!; echo $$FE_PID > .run/fe.pid; \
 	 trap 'echo; echo "==> stopping..."; \
 	       kill $$BOT_PID $$FE_PID 2>/dev/null || true; \
@@ -362,8 +370,8 @@ stop: ## bot + frontend + postgres + Docker Desktop を停止 (Claude セッシ�
 test:
 	cd backend && go test -race -count=1 ./...
 
-test-cover:
-	cd backend && go test -race -count=1 -cover ./...
+test-cover: ## カバレッジを backend/coverage.out に出す (go tool cover -html=backend/coverage.out で表示)
+	cd backend && go test -race -count=1 -coverprofile=coverage.out ./...
 
 # Integration tests: `go build -tags integration` で囲まれた *_integration_test.go
 # のみ実行。前提:
@@ -420,9 +428,9 @@ build:
 clean:
 	rm -rf bin .run
 
-clean-runtime:
-	rm -rf runtime/ai_input runtime/ai_output runtime/emergency_stop.flag
-	@echo "==> cleaned runtime artefacts"
+clean-runtime: ## runtime/ai_input と ai_output を消す(緊急停止フラグは消さない)
+	rm -rf runtime/ai_input runtime/ai_output
+	@echo "==> cleaned runtime artefacts (emergency_stop.flag は残す。解除は POST /api/emergency-resume)"
 
 # ---------------------------------------------------------------------------
 # check targets — Claude Code Stop hook / Codex / 手動 で使う統一エントリ
@@ -437,6 +445,6 @@ check-backend: test vet ## hook 用: test -race + vet + package compile check
 	cd backend && go build ./...
 
 check-frontend: ## frontend production build (Next.js)
-	cd frontend && npm run build
+	cd frontend && $(NPM) run build
 
 check: check-backend check-frontend ## backend + frontend 両方

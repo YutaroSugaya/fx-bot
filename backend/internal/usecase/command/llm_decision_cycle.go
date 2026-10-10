@@ -37,13 +37,13 @@ type LLMDecisionCycle struct {
 	MaxSpreadPips       float64 // pre-submit defer (0 = no cap); Gate is the backstop
 	MaxConcurrent       int     // same-symbol same-side cap (0/1 = no nanpin)
 
-	// HTFTrendVetoPips drives the ① MTF directional veto: an entry AGAINST the
+	// HTFTrendVetoPips drives the MTF directional veto: an entry AGAINST the
 	// last day's move (counter-trend BUY into a falling day / SELL into a rising day) is
 	// refused. 0 = OFF. Applies to ALL pairs (the playbook lanes contain no counter-trend
 	// entry). Judged on Summary24h.ChangePips — the same yardstick the playbook and
 	// prompt advertise — not a 1h-close slope.
 	HTFTrendVetoPips float64
-	// HTFTrendVetoExempt{Sell,Buy}Rpos waive the ① veto for a POSITIONED counter-trend
+	// HTFTrendVetoExempt{Sell,Buy}Rpos waive the veto for a POSITIONED counter-trend
 	// entry: without it the veto would structurally block the discipline's
 	// own "やる" patterns — a 戻りSELL from the top of the trailing 24h range (rpos ≥ Sell
 	// bound) and a genuine
@@ -156,14 +156,14 @@ type LLMDecisionResult struct {
 	// record the objective context alongside the LLM's reasoning. nil before the
 	// summary is built (e.g. excluded_hour / no_decider).
 	Summary *market.MarketSummary
-	// HTFVetoExempt: this outcome passed the ① MTF veto only via the positioned
+	// HTFVetoExempt: this outcome passed the MTF veto only via the positioned
 	// per-currency exemption — journalled so exempt trades stay auditable as a cohort.
 	HTFVetoExempt bool
 	// Arms is the compact summary of the plans this cycle placed (stage=armed).
 	Arms string
 }
 
-// htfVetoDisciplineExempt reports whether a counter-trend entry that the ① MTF veto
+// htfVetoDisciplineExempt reports whether a counter-trend entry that the MTF veto
 // would refuse is POSITIONED per the per-currency discipline and therefore exempt: a SELL from the top of the trailing 24h range
 // (rpos ≥ HTFTrendVetoExemptSellRpos — the 戻りSELL zone) or a BUY from a
 // genuine pullback (rpos ≤ HTFTrendVetoExemptBuyRpos). Unlike the vetoes, the
@@ -222,7 +222,7 @@ func (c *LLMDecisionCycle) journal(result *LLMDecisionResult, runErr *error) {
 		e.Error = (*runErr).Error()
 	}
 	e.RejectReason = result.RejectReason
-	// Pair the reasoning with the objective decision-time context (③ richer
+	// Pair the reasoning with the objective decision-time context (richer
 	// per-trade knowledge): price/spread/ATR(5m)/ATR(1h)/1h-trend.
 	if s := result.Summary; s != nil {
 		e.Price = s.CurrentRate.Bid
@@ -250,7 +250,7 @@ func (c *LLMDecisionCycle) Run(ctx context.Context) (result LLMDecisionResult, e
 	// summary is captured by res so EVERY outcome (no_trade / submitted / error)
 	// records the decision-time market context in the journal, not just the prose.
 	var summary *market.MarketSummary
-	htfVetoExempt := false // set iff the ① veto fired and the positioned exemption waived it
+	htfVetoExempt := false // set iff the veto fired and the positioned exemption waived it
 	res := func(stage string, d strategy.LLMTradeDecision) LLMDecisionResult {
 		return LLMDecisionResult{Stage: stage, Decision: d, Summary: summary, HTFVetoExempt: htfVetoExempt}
 	}
@@ -378,7 +378,7 @@ func (c *LLMDecisionCycle) Run(ctx context.Context) (result LLMDecisionResult, e
 		}
 		// Exhaustion veto: the 24h window has ALREADY travelled ≥ the cap in the entry's
 		// direction — a chase into a spent move. Same-direction
-		// only; counter-direction entries are the ① htf veto's job below.
+		// only; counter-direction entries are the htf veto's job below.
 		if chg := summary.Summary24h.ChangePips; c.ExhaustionVetoPips > 0 &&
 			((d.Side == order.SideSell && chg <= -c.ExhaustionVetoPips) ||
 				(d.Side == order.SideBuy && chg >= c.ExhaustionVetoPips)) {
@@ -397,7 +397,7 @@ func (c *LLMDecisionCycle) Run(ctx context.Context) (result LLMDecisionResult, e
 		}
 	}
 
-	// ① MTF directional veto: refuse an entry AGAINST the last
+	// MTF directional veto: refuse an entry AGAINST the last
 	// day's move — counter-trend BUY into a falling day / SELL into a rising day (where the
 	// trade-history analysis found losses concentrated). It is judged
 	// on the SAME yardstick the playbook advertises — summary_24h.change_pips — instead of

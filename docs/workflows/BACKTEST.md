@@ -79,7 +79,7 @@ DATABASE_URL="$BACKTEST_DATABASE_URL" go run ./cmd/backtest \
 | `-fee` | 1 trade あたり固定手数料 (円) | 0 |
 | `-fee-rate` | 約定金額 × rate% の往復手数料 (GMO 公表値は `0.002` = 0.002%) | 0 |
 | `-spread-median` / `-spread-tokyo-spike` | 時間帯別スプレッドモデル (平常の中央値 + 05-08 JST の上乗せ)。半スプレッドを leg ごとに加算 | 0 (off) |
-| `-spread-file` | 較正済み時間帯別スプレッド YAML (`cmd/spread-calibrate` が `market_summaries` から生成)。ファイルにある symbol はフラグのモデルを上書き | — |
+| `-spread-file` | 較正済み時間帯別スプレッド YAML (`cmd/spread-calibrate` が `market_summaries` から生成。`market_summaries` は advisor が動いた分しか溜まらないので、advisor を使っていなければ作れない)。ファイルにある symbol はフラグのモデルを上書き | — |
 | `-swap-table` | スワップ表 YAML (`swap_table: {USD_JPY: {BUY: …, SELL: …}}` = 1,000 通貨あたり円/晩、21:00 UTC 跨ぎで計上、水曜 3 倍) | off |
 | `-replay-tf` | `1m` / `1d` (日足戦略は 1m を日足に resample して評価) | `1m` |
 | `-slice` | `hour` / `weekday` / `both` — JST の時間帯別・曜日別の内訳を追加表示 (pretty のみ) | — |

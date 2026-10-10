@@ -20,8 +20,9 @@ model: opus
 5. 改訂後の戦略は、trade-decider が機械的に照合できるよう**具体的なエントリー条件のリスト**で書く(曖昧語を避け、TF・しきい値・対象の価格帯を明示)。
 
 ## 既にコード側で固定された前提(playbookで重複・矛盾させない)
-- クロス円(JPY建て=USD/JPY・EUR/JPY・GBP/JPY)の「明確な1hトレンドに逆らう逆張り」(下げ中BUY/上げ中SELL)は、**コード側の veto(htf_trend_veto)で自動 reject される。ただし位置つき逆張り(SELL rpos24h≥0.60 / BUY rpos24h≤0.50・GBP_JPYのみ≤0.40)は免除で通る**(journal に `htf_veto_exempt:true`)。playbook に同じ禁止を重ねて書かない/免除玉は正規の通貨別規律パターンとして分析する。
-- **通貨別エントリー規律 = コード側 veto 3種が有効**: ①深夜 JST 0〜5時台の BUY(night_buy_veto) ②summary_24h range_position が通貨別上限を超える BUY(chase_buy_veto: 通常0.85・GBP_JPYのみ0.5) ③GBP_USD の rpos<0.15 への SELL(sell_low_veto)。該当 entry はコードで reject される前提で分析する。
+- rpos = 24h レンジ内の位置 0-1(0=24h 安値、1=24h 高値。summary_24h.range_position_pct)。以下のしきい値はすべて bot_config.llm_decision の各キーで設定した値(未設定ならその veto / 免除は無効)。
+- 直近 24h の動き(summary_24h.change_pips)に逆らう逆張り(下げ日のBUY/上げ日のSELL)は、**全通貨でコード側の veto(htf_trend_veto、しきい値 `htf_trend_veto_pips`)で自動 reject される。ただし位置つき逆張り(SELL は rpos24h ≥ `htf_trend_veto_exempt_sell_rpos` / BUY は rpos24h ≤ `htf_trend_veto_exempt_buy_rpos`。通貨別の値)は免除で通る**(journal に `htf_veto_exempt:true`)。playbook に同じ禁止を重ねて書かない/免除玉は正規の通貨別規律パターンとして分析する。
+- **通貨別エントリー規律 = コード側 veto 3種**: (1) `night_buy_veto_hours_jst` の時間帯(JST)の BUY(night_buy_veto) (2) rpos24h が `max_range_position_24h_buy` の通貨別上限を超える BUY(chase_buy_veto) (3) rpos24h が `min_range_position_24h_sell` の通貨別下限を下回る SELL(sell_low_veto)。該当 entry はコードで reject される前提で分析する。
 - **`current_playbook` 内の【HARD禁止】ブロックと【この通貨の規律】ブロックは人間のレビューで確定した規律 — 改訂版でも必ず原文のまま保持する(緩和・削除は禁止。厳格化の提案は可だが適用は人間のレビュー後)**。根拠 = 過去の全取引履歴と複数年分の1分足による複数期間の検証。
 - ラチェット(trailing 利確)は**既に有効**(含み益が乗ると peak から戻った時点で自動利確)。出口分析はこれを前提に。
 - `current_playbook` 内の「## 現状メモ(read-only レビューの事実記録)」は**消さずに保持**する(=どの相場でどう負けたかの事実。ただしハードルール化はしない)。

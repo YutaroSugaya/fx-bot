@@ -67,12 +67,17 @@ CREATE TABLE position_state_events (
 - **PK `(position_id, state)`** が「同じ state に 2 回入れない」を強制 = terminal CLOSED の不変条件 + 二重 close 防止。
 - raw SQL や manual ops でこの table を bypass しようとしても CHECK + PK で拒否される。
 
-### (b) app 層 — `current.CanTransitionTo(next)`
+### (b) app 層 — status の CAS
 
-`State` interface の `CanTransitionTo(next State) bool` を repository 書込み前に必ず呼ぶ。
-不正遷移 (例: OPEN → CLOSED を skip) はここで return false して reject する。
+repository の書込みは、遷移元の status を条件にした UPDATE (CAS) で行う: `ClaimForClose` は
+`WHERE status='OPEN'` で OPEN → CLOSING を取り、`CloseAndRecord` は `WHERE status='CLOSING'` で
+CLOSING → CLOSED にする。条件に合わなければ 0 行更新で false を返し、呼び出し側は skip する
+(別経路が先に決済していた、など)。
 
-DB 側が落ちる前に call-site のバグを検知するためで、**両層を冗長と見なして 1 つに統合してはいけない**。
+遷移の行列 (§2) は domain の `State.CanTransitionTo(next)` (`backend/internal/domain/position/state.go`) に
+仕様として書き、テストで固定している。repository はこれを呼ばない (書込み前の検査は上の CAS が担う)。
+
+DB 層は bypass (raw SQL・手作業) を、app 層は call-site のロジックの誤りを止める。**両層を冗長と見なして 1 つに統合してはいけない**。
 
 ---
 
@@ -139,15 +144,19 @@ emergency_stop の後は operator が broker 側の約定を確認して記帳�
 
 Paper のみ。Live の起動時は実約定を解決して記録し、解決できなければ runtime reconcile に回す (5.3。synthetic close はしない)。
 
+paper の起動時は、reconcile の前に DB の OPEN 行を PaperBroker に戻す (`restorePaperPositions`、
+`backend/cmd/bot/main.go`)。OPEN の建玉はそのまま管理が続く。synthetic close になるのは、
+**CLOSING のまま残った行 (止まった close saga の残骸) だけ**:
+
 ```
-[startup: DB OPEN, broker no position (paper には broker state なし)]
-  INSERT recovered_positions (position_id, recovery_reason, recovered_at)
-  -- 直後にすぐ synthetic close:
-  INSERT position_state_events (CLOSING)
+[paper startup: DB CLOSING, PaperBroker に無い]
+  -- claim は飛ばして CloseAndRecord を直接呼ぶ (reconcile_handlers.go)
   INSERT position_state_events (CLOSED)
-  UPDATE positions SET status='CLOSED'
-  INSERT trades (close_reason='reconcile_cold_close')
+  UPDATE positions SET status='CLOSED' WHERE status='CLOSING'
+  INSERT trades (close_reason='reconcile_cold_close', 建値で 0 円)
 ```
+
+`recovered_positions` はこの経路では書かない (書くのは broker の建玉を DB に取り込む adopt 経路だけ)。
 
 ---
 
@@ -156,10 +165,10 @@ Paper のみ。Live の起動時は実約定を解決して記録し、解決で
 | # | 不変条件 | enforce 方法 |
 |---|---|---|
 | I1 | 1 つの position は同じ state に 2 度入らない | DB PK `(position_id, state)` |
-| I2 | terminal CLOSED から先の遷移は存在しない | DB PK + `ClosedState.CanTransitionTo() = false` |
+| I2 | terminal CLOSED から先の遷移は存在しない | DB PK + status の CAS (CLOSED を条件にする UPDATE が無い)。仕様は `ClosedState.CanTransitionTo() = false` (テストで固定) |
 | I3 | `positions.status` と最新 ledger entry は常に一致 | 同一 Tx で両方書く + integration test で diff チェック |
 | I4 | 不正な state 文字列は domain 層で reject | `ParseState` が error を返す → repository scan が fail loudly |
-| I5 | OPEN を skip して直接 CLOSED 不可 | `OpenState.CanTransitionTo(ClosedState{}) = false` |
+| I5 | OPEN を skip して直接 CLOSED 不可 | `CloseAndRecord` の CAS が `status='CLOSING'` を条件にする。仕様は `OpenState.CanTransitionTo(ClosedState{}) = false` (テストで固定) |
 
 ---
 

@@ -23,7 +23,7 @@ market_regime:
   # direction=both なので regime は方向を縛らない (実行時の 1h トレンドが side を決める)。
   type: "unclear"
   confidence: 0.70
-  reason: "frozen manual config (experiment v2 / mtf_pullback); side は 1h トレンドで決定"
+  reason: "frozen manual config (mtf_pullback); side は 1h トレンドで決定"
 
 strategy:
   name: "mtf_pullback"
@@ -37,7 +37,7 @@ entry:
   direction: "both"
 
 exit:
-  # v2: TP/SL は戦略が建値時点で構造的に算出する (TP1=1mライン or ~20pips / SL=5m壁の
+  # TP/SL は戦略が建値時点で構造的に算出する (TP1=1mライン or ~20pips / SL=5m壁の
   # ブレイク基準, mtf_pullback.go)。下の take_profit_pips/stop_loss_pips は戦略には
   # 使われず (Signal で上書き)、validator 通過 + (advisor時の) dead-market guard 用の
   # 代表値として残す。構造的 TP は ~20pip / SL は 12pip で clip される。

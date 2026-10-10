@@ -27,10 +27,10 @@ triggers:
 recommended_risk_section:
   daytrade:
     max_trades_in_this_window: <int 1〜2>
-    max_loss_in_this_window_jpy: <int 1000〜3000>
+    max_loss_in_this_window_jpy: <int 1000〜3000 (hard_limits 上限 5000)>
   scalp_event_probe:
     max_trades_in_this_window: <int 2〜5>
-    max_loss_in_this_window_jpy: <int 1000〜5000>
+    max_loss_in_this_window_jpy: <int 1000〜3000 (hard_limits 上限 5000)>
 reason_jp: <日本語 150 文字以内。Input JSON の数値を引用しながら根拠を書く。"総合判断" のような曖昧表現は禁止>
 ```
 

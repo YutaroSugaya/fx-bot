@@ -66,7 +66,7 @@ bot が起動中に動かしている goroutine / 並行性制御 / runtime arti
 └──────────────────────────────────────────────────────────┘
 
 ┌─ runReflectionScheduler (llm_decision.enabled かつ ──────┐
-│   reflection_enabled 時, 1 本)                            │
+│   reflection_enabled 時 (省略時 true), 1 本)              │
 │ reflection_interval_minutes (既定 1日) 毎: Reflexion 反省 │
 │ ループが確定トレードを分析し playbook_<SYMBOL>.jsonl に    │
 │ 改訂版を追記する。休場中は skip                           │
@@ -91,8 +91,8 @@ graceful shutdown は `<-ctx.Done()` 後に `wg.Wait()`。Paper mode では reco
 | `sharedEntryMu` | `*sync.Mutex` (cmd/bot/main.go で生成 → ExecuteOrder.EntryMutex + EntryAdmission.Mutex に共有) | 全 symbol 横断で `broker.PlaceOrder` を直列化 (account-wide entry serialization)。auto / manual / per-symbol 全経路 |
 | `closeMu` | `*sync.Mutex` (cmd/bot/main.go で生成、全 bundle 共有) | `ManageOpenPositions.closeOne` + `ClosePositionCommand.Execute` の `broker.ClosePosition` |
 | `advisorFireMu` | `*sync.Mutex` (cmd/bot/main.go closure) | scheduler tick の fan-out fire と `/api/advisor/trigger` 手動 fire を直列化 |
-| `Aggregator.spreadMu` | `sync.Mutex` (worker 内) | 24h spread サンプル append (priceTick: writer / advisor: reader) |
-| `ActiveConfigHolder.mu` | `sync.RWMutex` (app/active_config.go) | 現在の active config の atomic read/write |
+| `Worker.spreadMu` | `sync.Mutex` (app/worker.go) | 24h spread サンプル append (priceTick: writer / advisor: reader) |
+| (mutex なし) `ActiveConfigHolder.configs` | `sync.Map` (app/active_config.go) | symbol → 現在の active config の read/write。mutex は持たない |
 | `llmCycleRunning` | `atomic.Bool` (cmd/bot/loops.go) | LLM 判断サイクル (定期 tick / 手動 trigger / event 再判断) の重複実行を防ぐ CAS |
 
 ### Mutex を取る箇所のルール
@@ -128,8 +128,8 @@ type Counters struct {
 
 | パス | 役割 |
 |---|---|
-| `runtime/emergency_stop.flag` | trip 時に reason 文字列が append される。worker / handler が `safety.Active(flag)` で読む |
-| `runtime/ai_input/latest_summary.json` | minuteLoop が 1 分ごとに書く市場サマリ。Claude advisor の入力 |
+| `runtime/emergency_stop.flag` | trip 時に `<RFC3339> <reason>` の 1 行で上書きされる (`os.WriteFile`。最新の理由だけが残る)。worker / handler が `safety.Active(flag)` で読む |
+| `runtime/ai_input/latest_summary.json` | minuteLoop が 1 分ごとに書く市場サマリ。Claude advisor の入力。bot_config の symbols が 2 つ以上なら `latest_summary_<SYMBOL>.json` |
 | `runtime/ai_output/<run_id>.yaml` | (legacy / 検証用) Claude が生成した raw YAML 履歴 |
 | `runtime/logs/llm_decisions.jsonl` | LLM 決定ループの判断ジャーナル (append-only、1 行 1 サイクル。event:cycle / parse_fallback) |
 | `runtime/playbook_<SYMBOL>.jsonl` | LLM 決定ループの playbook (append-only。判断時は最新行を読む。`reflection_enabled` 時は Reflexion 反省ループが追記、false なら人が追記した行だけ) |
@@ -144,9 +144,9 @@ type Counters struct {
 
 | 何 | どこ | 役割 |
 |---|---|---|
-| `app.ActiveConfigHolder` | メモリ | 現在の active config を atomic に保持 (sync.RWMutex 経由) |
+| `app.ActiveConfigHolder` | メモリ | symbol ごとの現在の active config を `sync.Map` で保持 |
 | `app.Counters` | メモリ | atomic.Int64 で集約 |
-| `app.Aggregator` | メモリ | 1m/5m/15m/1h の rolling candle buffer (24h 分) |
+| `app.Aggregator` | メモリ | rolling candle buffer。1m/5m/15m は 24h 分、1h は 14 日分 (24×14 本) |
 | `priceTick の spreadHistory` | worker 内 | 直近 24h の spread サンプル (advisor prompt 入力) |
 | `consecutiveTickerErrors` | worker 内 (single-goroutine) | 連続 ticker 失敗カウント。3 回で WARN |
 | `entryAllowedAt` | worker 内 (single-goroutine) | ticker 復旧直後の新規エントリ停止期限 |
@@ -160,7 +160,7 @@ type Counters struct {
 
 graceful shutdown が遅れる主因:
 
-- HTTP server: in-flight リクエストの完了待ち (max 30s default)
+- HTTP server: in-flight リクエストの完了待ち (最大 5 秒。`api_server.go`)
 - AdvisorCycle / LLM 判断サイクルが走行中: Claude CLI subprocess が timeout までブロック
 - priceTick の broker call が timeout 内に終わらない
 

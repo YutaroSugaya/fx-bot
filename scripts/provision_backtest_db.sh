@@ -33,7 +33,7 @@ fi
 BACKTEST_DATABASE_URL="$(printf '%s' "$DATABASE_URL" | sed -E 's#/fxbot(\?|$)#/fxbot_backtest\1#')"
 if [ "$BACKTEST_DATABASE_URL" = "$DATABASE_URL" ]; then
   echo "ERROR: could not derive fxbot_backtest DSN from DATABASE_URL (expected db name 'fxbot')." >&2
-  echo "       DATABASE_URL=$DATABASE_URL" >&2
+  echo "       DATABASE_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#://[^@]+@#://***@#')" >&2
   exit 1
 fi
 echo "==> backtest DSN: $(printf '%s' "$BACKTEST_DATABASE_URL" | sed -E 's#://[^@]+@#://***@#')"
@@ -56,4 +56,4 @@ echo "==> migrating schema into fxbot_backtest"
 
 echo ""
 echo "==> done. Export this for the ingest + backtest steps:"
-echo "    export BACKTEST_DATABASE_URL='$BACKTEST_DATABASE_URL'"
+echo "    export BACKTEST_DATABASE_URL='<DATABASE_URL の DB 名を fxbot_backtest に替えた DSN>'"

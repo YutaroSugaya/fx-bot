@@ -1,12 +1,12 @@
 # paper-v83 (USD_JPY) — paper モード(bot.mode: paper_config)用の active config
 # ------------------------------------------------------------------
 # bot は起動時に DB の strategy_configs(status='active', mode=<bot.mode>)を読む。paper_config 側に
-# 有効な active 行が無いと起動時 validation に落ちて holder が空になり、LLM が go を出しても
+# active 行が無い (または起動時の検証に落ちる) と holder が空のままになり、LLM が go を出しても
 # llm_decision_cycle.go の cfgID=="" 分岐で stage=no_active_config
 # (ダッシュボード「設定未解決でスキップ」)となって発注が消える。paper で LLM ループを動かすときは
 # この config を paper_config の active として seed する。
 #
-# 内容は configs/llm_v7_USD_JPY.yaml と同一 (config_id と日付メタのみ差し替え)。
+# 内容は configs/llm_v7_USD_JPY.yaml と同一 (config_id・日付メタ・market_regime.reason だけが違う)。
 # paper と live で同じ条件セットを測るため、ここで条件を作り変えない。
 # 同値性は backend TestPaperV83Config が entry/exit/risk 全文比較で強制する。
 #
@@ -27,7 +27,7 @@ enabled: true
 market_regime:
   type: "volatile"
   confidence: 0.50
-  reason: "v8.3 paper gate seed; エントリー判断は LLM ループ (playbook v8.3) が 24h 担当"
+  reason: "paper seed; エントリー判断は LLM ループ (playbook) が 24h 担当"
 
 strategy:
   name: "exhaustion_fade"

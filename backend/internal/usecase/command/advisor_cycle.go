@@ -166,7 +166,7 @@ func (u *AdvisorCycle) Run(ctx context.Context, source port.AdvisorRunSource) (*
 		}
 	}
 
-	// ① dead-market guard: if the advisor returned an enabled
+	// dead-market guard: if the advisor returned an enabled
 	// trade whose take_profit is unreachable for the recent 1h range, rewrite
 	// it to no_trade BEFORE promotion. We mutate the YAML bytes (not just the
 	// parsed struct) so every downstream materialization — raw_yaml audit row,
@@ -200,7 +200,7 @@ func (u *AdvisorCycle) Run(ctx context.Context, source port.AdvisorRunSource) (*
 
 	state, stateErr := u.GetAccountState()
 	if stateErr != nil {
-		// C5 fix: refuse to promote when we can't read live state. The
+		// Refuse to promote when we can't read live state. The
 		// risk-validation pass would otherwise see 0 open_positions / 0
 		// daily_loss and let a config slip past caps it should hit.
 		u.Logger.Error("get_account_state_failed_rejecting_promote", "err", stateErr)

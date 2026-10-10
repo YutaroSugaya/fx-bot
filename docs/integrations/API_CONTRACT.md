@@ -28,7 +28,9 @@ Status / open positions / trades などの **GET 系 DTO** は usecase/query/ �
 ```typescript
 type Status = {
   mode: string                          // "paper_config" | "live_config" | "disabled"
-  symbol: string
+  symbols: SymbolStatus[]               // シンボルごとの内訳 (常に 1 件以上)
+  account_open_positions: number        // 全シンボル合計の OPEN 数
+  symbol: string                        // 以下の top-level は primary symbol の値 (旧形式)
   uptime: string                        // "3h27m12s"
   open_positions: number
   emergency_stop: boolean
@@ -88,10 +90,10 @@ type AdvisorDecision = { ... }
 | `/api/trade/manual` | `ManualTradeRequest` / `ManualTradeResult` | `command.ManualTrade.Execute` → `trades_handler.go:Manual` |
 | `/api/positions/close` | `ClosePositionRequest` / `ClosePositionResponse` | `command.ClosePosition.Execute` → `positions_handler.go` |
 | `/api/positions/extend` | `ExtendPositionRequest` (`{id, symbol, add_minutes}`) / `ExtendPositionResponse` (`{position_id, max_hold_minutes, added_minutes, deadline_at, remaining_minutes, error?}`。範囲外 add_minutes=400、非存在/OPEN でない=404) | `command.ExtendMaxHoldCommand.Execute` → `positions_handler.go:Extend` |
-| `/api/llm-decision/trigger` | (body 不要) / `{"started": true}` (202。実行中なら 409 `{"started": false, "error": ...}`、未配線なら 503) — 全ペアの LLM 判断サイクルを即時再実行 | `LLMDecisionHandler.TriggerNow` → `llm_decision_handler.go` |
-| `/api/advisor/trigger` | (body 不要) / `TriggerResult` | `runAdvisorOnce(manual)` → `advisor_handler.go` |
+| `/api/llm-decision/trigger` | (body 不要) / `{"started": true}` (202。実行中・`llm_decision.enabled` が false・休場中 (土日) は 409 `{"started": false, "error": ...}`、未配線なら 503) — 全ペアの LLM 判断サイクルを即時再実行 | `LLMDecisionHandler.TriggerNow` → `llm_decision_handler.go` |
+| `/api/advisor/trigger` | body は省略可 (`{"symbol":"USD_JPY"}` でそのシンボルだけ。省略で全シンボル) / `TriggerResult` (失敗時は 500 で `error` 付き)。`ai_advisor.enabled` に関係なく claude を呼ぶ | `triggerAdvisor` (`cmd/bot/main.go`) → `advisor_handler.go` |
 | `/api/ask-claude` | `AskClaudeRequest` / `AskClaudeResult` | `query.AskClaude.Execute` → `ask_claude_handler.go` (Q&A は読み取り扱い) |
-| `/api/emergency-stop` | (body 不要) / `{}` | `safety.Trip(flag, "manual_via_api")` → `emergency_handler.go:Stop` |
+| `/api/emergency-stop` | (body 不要) / `{"emergency_stop":"active"}` | `safety.Trip(flag, "manual_via_api")` → `emergency_handler.go:Stop` |
 | `/api/emergency-resume` | (body 不要) / `{"emergency_stop":"cleared"}` | `os.Remove(flag)` → `emergency_handler.go:Resume` (運用責任で flag file を削除) |
 
 ### `/api/trade/manual` — `allow_override` フィールド

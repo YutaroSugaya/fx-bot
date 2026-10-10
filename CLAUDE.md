@@ -10,9 +10,10 @@
 ## 残すカタストロフ防御(どの戦略でも絶対に外さない)
 
 - **emergency_stop 中は新規エントリー不可**(`runtime/emergency_stop.flag`、再開は `POST /api/emergency-resume`)。
-  自動ループは各サイクル冒頭でこれを確認する。
+  LLM 判断ループはサイクル冒頭でこれを確かめて LLM を呼ばない。他の経路の新規も risk Gate / admission が拒否する。
 - **live で TP/SL は必ず broker(GMO)側 OCO に置く**。Bot 内 OnTick 監視のみは禁止(bot 死で守りが消える)。
-- **同 symbol 同 side の OPEN(external 含む)があれば新規 reject**(ナンピン禁止。cap とは独立)。
+- **同 symbol 同 side の OPEN(external 含む)があれば新規 reject**(ナンピン禁止。cap とは独立・手動 override でも越えられない)。
+  例外は `max_concurrent` を 2 以上にした戦略だけで、arm 済みの勝ち玉への追加を上限まで許す(既定 0/1 は追加不可)。
 - **日次損失 cap / per-trade 損失 cap / スプレッドガード**は維持。
 - ポジションは建玉時に `config_id` / TP / SL / MaxHold を**凍結保存**し、その後 playbook/config が
   切り替わっても既存ポジションには影響させない(open 玉の保護)。

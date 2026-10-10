@@ -38,8 +38,8 @@ YAML 以外は markdown コードフェンスや補足コメントを付けな�
 例:
 
 ```
-原因: take_profit_pips が 60.0 で hard_limit 上限 50.0 を超過。stop_loss も 35.0 で超過 (上限 30.0)。
-修正: take_profit_pips=30.0, stop_loss_pips=20.0 に丸める。momentum_pullback 継続。
+原因: range_breakout_probe の take_profit_pips 60.0 が strategy_limits 上限 50.0 を超過。stop_loss_pips 35.0 も上限 30.0 を超過。
+修正: take_profit_pips=50.0, stop_loss_pips=30.0 (境界値) に丸め、ratchet は arm−giveback ≥ TP×0.5 で再計算。range_breakout_probe 継続。
 
 config_id: "20260515-1100-usdjpy-review"
 generated_at: "2026-05-15T11:00:00+09:00"

@@ -20,7 +20,7 @@ enabled: true
 market_regime:
   type: "unclear"
   confidence: 0.70
-  reason: "v4 trend_follow runner; side は 1H 200SMA トレンド方向で決定 (both)"
+  reason: "trend_follow (ratchet で伸ばす出口); side は 1H 200SMA トレンド方向で決定 (both)"
 
 strategy:
   name: "trend_follow"

@@ -36,7 +36,7 @@ type PromptRunner func(ctx context.Context, prompt string) (string, error)
 //     な stub を渡し、本番は cmd/bot/main.go が claude CLI 起動関数を渡す。
 type AskClaudeQuery struct {
 	// SummaryStore is the artifact store that holds the latest market
-	// summary JSON. A1 fix: replaces SummaryPath (direct os.ReadFile)
+	// summary JSON. Replaces SummaryPath (direct os.ReadFile)
 	// — usecase no longer does file I/O. nil → Execute degrades to
 	// "no summary, continue with {}".
 	SummaryStore port.MarketSummaryArtifactStore

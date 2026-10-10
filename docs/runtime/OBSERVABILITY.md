@@ -48,6 +48,13 @@ logger.Info("position_closed",
 - key は **snake_case** (`position_id`, `close_reason`, `consecutive_losses`)
 - emergency_stop trip 時は `Error` で `reason=...` を含める
 
+### 2.1 監視 alert ループ (ops alert)
+
+[backend/cmd/bot/ops_alert_loop.go](../../backend/cmd/bot/ops_alert_loop.go) が 30 分ごとに symbol 別に集計し、
+当日の実現損が `risk.max_daily_loss_jpy` に届いた / 最後の約定から 6 時間取引が無い / 日次サマリ (bot の
+タイムゾーンで 07:00 以降に 1 日 1 回) を Notifier に出す。Notifier は stdout (slog) だけなので、今はログに出るだけ。
+外へ通知するには Notifier の adapter を足す。
+
 ---
 
 ## 3. `/api/status` レスポンス
@@ -113,7 +120,7 @@ logger.Info("position_closed",
 | [positions](DATA_MODEL.md#positions-main) | 全ポジション (open / closed) | 取引履歴 + PnL 元データ |
 | [trades](DATA_MODEL.md#trades-main) | 決済済みラウンドトリップ | PnL 集計 + 連続損失カウント |
 | [signal_rejections](DATA_MODEL.md#signal_rejections-main) | risk gate reject 履歴 | プロンプト改善ループの主要入力 |
-| [market_summaries](DATA_MODEL.md#market_summaries-main) | 1 分ごとの市場サマリスナップショット | spread 較正 (`cmd/spread-calibrate`) / 将来の advisor-replay backtest 入力 |
+| [market_summaries](DATA_MODEL.md#market_summaries-main) | advisor サイクルごとの市場サマリスナップショット (INSERT するのは AdvisorCycle だけ。advisor が off なら空のまま) | spread 較正 (`cmd/spread-calibrate`) / 将来の advisor-replay backtest 入力 |
 | [candles](DATA_MODEL.md#candles-main) | OHLCV 履歴 (UPSERT) | backtest 入力 + 起動 backfill |
 
 スキーマ詳細は [DATA_MODEL.md](DATA_MODEL.md)、運用シーケンスは [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) §6。
@@ -124,8 +131,8 @@ logger.Info("position_closed",
 
 | ファイル | 用途 | 観測手段 |
 |---|---|---|
-| `runtime/emergency_stop.flag` | trip 中の reason 文字列が append される | `cat runtime/emergency_stop.flag` |
-| `runtime/ai_input/latest_summary.json` | 1 分ごとの市場サマリ | `jq . runtime/ai_input/latest_summary.json` |
+| `runtime/emergency_stop.flag` | trip するたびに `<RFC3339> <reason>` の 1 行で上書きされる (最新の理由だけが残る) | `cat runtime/emergency_stop.flag` |
+| `runtime/ai_input/latest_summary.json` | 1 分ごとの市場サマリ (bot_config の symbols が 2 つ以上なら `latest_summary_<SYMBOL>.json`) | `jq . runtime/ai_input/latest_summary.json` (複数なら `jq . runtime/ai_input/latest_summary_USD_JPY.json`) |
 | `runtime/ai_output/*.yaml` | Claude が生成した raw YAML (legacy) | `ls -la runtime/ai_output/` |
 | `runtime/logs/llm_decisions.jsonl` | LLM 決定ループの判断ジャーナル (1 行 1 サイクル: stage / side / TP / SL / reason / price / spread / range_pos_24h / htf_veto_exempt。`event:parse_fallback` 行は raw stdout を保全)。emergency_stop 中のサイクルは LLM を呼ばず stage `emergency_stop` で記録される | `tail -5 runtime/logs/llm_decisions.jsonl \| jq` |
 | `runtime/llm_decision_status.json` / `runtime/advisor_v2_status.json` | 直近サイクルの symbol 別結果 (ダッシュボード表示用) | `jq . runtime/llm_decision_status.json` |

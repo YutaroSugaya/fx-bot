@@ -94,6 +94,17 @@ var placeholderPasswords = map[string]bool{
 	"change_me_locally": true, "change_me": true, "changeme": true, "password": true, "admin": true,
 }
 
+// ErrAPIAuthWeakPassword is returned by Run() when the API is bound outside loopback with a short
+// password (BasicAuth has no brute-force backoff, so length is the defence there).
+var ErrAPIAuthWeakPassword = errors.New("api: DASHBOARD_PASS is too short for a non-loopback bind")
+
+const (
+	// minNonLoopbackPasswordLen is the minimum DASHBOARD_PASS length when API_ADDR is not loopback.
+	minNonLoopbackPasswordLen = 16
+	// maxRequestBodyBytes caps POST bodies (the largest legitimate one is an ask-claude question).
+	maxRequestBodyBytes = 64 << 10
+)
+
 // ErrAPIAuthUnsafeBind is returned by Run() when auth is bypassed
 // (AllowUnauthenticated) but Addr is not a loopback address.
 var ErrAPIAuthUnsafeBind = errors.New("api: auth bypass is allowed only on a loopback bind (set DASHBOARD_USER and DASHBOARD_PASS, or bind API_ADDR to 127.0.0.1)")
@@ -124,6 +135,9 @@ func (s *APIServer) Run(ctx context.Context) error {
 	}
 	if !s.Auth.AllowUnauthenticated && placeholderPasswords[strings.ToLower(s.Auth.Pass)] {
 		return ErrAPIAuthPlaceholderPassword
+	}
+	if !s.Auth.AllowUnauthenticated && !isLoopbackAddr(s.Addr) && len(s.Auth.Pass) < minNonLoopbackPasswordLen {
+		return fmt.Errorf("%w (min %d chars)", ErrAPIAuthWeakPassword, minNonLoopbackPasswordLen)
 	}
 	if s.Auth.AllowUnauthenticated && s.Logger != nil {
 		s.Logger.Warn("api_server_auth_disabled",
@@ -187,11 +201,8 @@ func (s *APIServer) Run(ctx context.Context) error {
 		mux.HandleFunc("/api/llm-decision/trigger", authMW(s.LLMDecisionHandler.TriggerNow))
 	}
 
-	srv := &http.Server{
-		Addr:              s.Addr,
-		Handler:           newHostGuard(s.Addr, s.AllowedHosts)(corsMW(csrfMW(mux))),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	handler := newSecurityHeaders(newHostGuard(s.Addr, s.AllowedHosts)(corsMW(csrfMW(newBodyLimit(maxRequestBodyBytes)(mux)))))
+	srv := newHTTPServer(s.Addr, handler)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -217,6 +228,43 @@ func (s *APIServer) Run(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	}
+}
+
+// newHTTPServer sets the server timeouts. WriteTimeout stays 0 because /api/advisor/trigger waits for
+// a claude run that can take many minutes; ReadTimeout and IdleTimeout drop slow or idle clients.
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+}
+
+// newBodyLimit caps every request body at max bytes; a handler that reads past it gets
+// *http.MaxBytesError (JSON decoding fails and the handler answers 400).
+func newBodyLimit(max int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, max)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// newSecurityHeaders forbids framing (clickjacking of the control endpoints) and MIME sniffing.
+func newSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Content-Security-Policy", "frame-ancestors 'none'")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "no-referrer")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // newHostGuard rejects requests whose Host header is not a loopback name (or one of extra) while

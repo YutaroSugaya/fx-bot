@@ -57,18 +57,17 @@ reason_jp: <現在のボラ/値幅から各 TP/SL/ratchet をどう導いたか�
 
 skill 03 の「ratchet_arm_pips / ratchet_giveback_pips」セクションを必ず Read してから決める。
 基本ルール:
-- `0 / 0` で OFF、または両方 > 0 で ON。**片方だけ > 0 は Go validator が reject**
+- **enabled config では ratchet ON (arm/give 両方 > 0) が必須**。0/0 (OFF) は no_trade のみ、片方だけ > 0 は Go validator が reject。この subagent が出す値は常に両方 > 0
 - arm >= 3, give >= 1, arm > give を必ず守る (= give が arm 未満)
-- **arm = TP × 0.6〜0.7、giveback = arm × 15〜25%** を目安に置く。これで確保利益 `locked = arm − giveback` が **TP × 0.5 以上**になり、逆RR floor を満たす (割ると Go validator が `locked < TP×0.5` で reject)。例: TP12 → arm 8 / give 2 (locked 6)、TP18 → arm 11 / give 2 (locked 9)
+- **arm = TP × 0.6〜0.7、giveback = arm × 15〜25%** を目安に置き、算出後に確保利益 `locked = arm − giveback` が **TP × 0.5 以上**かを検算する (逆RR floor。割ると Go validator が `locked < TP×0.5` で reject。足りなければ give を 1 ずつ減らす。give ≥ 1・arm > give は厳守)。例: TP12 → arm 8 / give 2 (locked 6)、TP18 → arm 11 / give 2 (locked 9)
 - **arm を TP の半分未満に置く旧設計 (arm=5/give=3、arm=4/give=2、arm=10/give=5 等) は廃止** — 勝ちは薄利・負けは SL フルの逆RR の温床
 - breakout_follow は伸びるので arm を TP の 0.7× 寄りに、momentum_pullback / range_breakout_probe は 0.6× 寄りにして良い (いずれも locked ≥ TP×0.5 は厳守)
-- realized_volatility が 1h で 8pips 超など極端な日は ratchet 機能を ON 推奨 (peak 取り逃しのリスク高)
 
 # 禁則
 
 - スプレッドや EV 監査は別段 (skill 07 の execution_cost) でやるので、ここでは TP/SL/MaxHold/ratchet の数値レンジ内最適化だけに集中する
 - range_reversion 用の TP/SL は出さない (廃止済み)
-- ratchet を「片方だけ > 0」(例: arm=5, give=0) で出すと validator が reject する。両方 0 か両方 > 0
+- ratchet は必ず両方 > 0 で出す。「片方だけ > 0」(例: arm=5, give=0) や 0/0 は validator が reject する
 - 中間メモや検討過程は出力しない。stdout には上記 YAML 1 文書だけ
 - ファイル編集は禁止 (Read のみ許可)
 - レンジ外の値を 1 つでも出すと advisor 全体が reject される。skill 03 のレンジ表に必ず収める

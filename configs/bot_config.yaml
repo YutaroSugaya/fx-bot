@@ -8,7 +8,8 @@
 #
 # Live を走らせるときは:
 #   1. configs/bot_config.live.example.yaml をコピーして configs/bot_config.live.yaml を作る
-#   2. `BOT_CONFIG_PATH=../configs/bot_config.live.yaml make start`(パスは backend/ からの相対)
+#   2. `.env` の `BOT_CONFIG_PATH` を `../configs/bot_config.live.yaml` にして make start(パスは backend/ からの相対。
+#      `.env` に書いた値はコマンドの前に付けた環境変数より優先されるので、`.env` 側を書き換える)
 bot:
   mode: paper_config        # disabled | paper_config | live_config
   timezone: Asia/Tokyo
@@ -17,7 +18,9 @@ symbols:
   - USD_JPY
   - EUR_JPY
   - GBP_JPY
-  # JPY quote のみ追加可。追加するときは configs/hard_limits.yaml の allowed_symbols にも
+  # advisor が選ぶ戦略 (momentum_pullback / breakout_follow / range_breakout_probe) は pip を 0.01 で
+  # 固定している箇所があるので JPY quote 専用。他の戦略は USD quote のペアも扱える (決済損益は quote→JPY に
+  # 換算する)。追加するときは configs/hard_limits.yaml の allowed_symbols にも
   # 足すこと(起動時に fail-close で検査する)。
 
 # advisor: claude CLI が一定間隔で戦略 config(YAML)を生成し、bot がスキーマと hard_limits で

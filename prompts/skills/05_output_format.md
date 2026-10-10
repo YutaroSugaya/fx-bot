@@ -1,6 +1,6 @@
 # Skill: 出力フォーマット (YAML スキーマ)
 
-最終出力は YAML のみ。Markdown コードフェンス (```yaml `````) や説明文・コメントは禁止。
+最終出力は YAML のみ。Markdown のコードフェンス (バッククォート 3 個で囲む書き方。`yaml` 付きも含む) や説明文・コメントは禁止。
 
 ## スキーマ (全フィールド必須)
 
@@ -22,7 +22,7 @@ strategy:
   name: momentum_pullback | breakout_follow | range_breakout_probe | no_trade
 
 entry:
-  max_spread_pips: number              # 0.3〜1.5 (hard_limits)。平常 1.0、明確なチャンスのみ最大 1.5 (skill 03/07)
+  max_spread_pips: number              # 0.3〜3.0 (hard_limits.max_spread_pips)。平常 1.0、明確なチャンスのみ広げる (skill 03/07)
   require_breakout: boolean            # breakout_follow のみ true、momentum_pullback / range_breakout_probe / no_trade は false
   direction: buy_only | sell_only | both | none
   allowed_hours_jst: [array of int]    # 任意。JST hour 0-23 の whitelist。空 or 省略=全時間帯許可
@@ -37,7 +37,7 @@ entry:
 exit:
   take_profit_pips: number             # skill 03 の戦略別レンジ厳守。no_trade は 0
   stop_loss_pips: number               # skill 03。no_trade は 0
-  max_hold_minutes: integer            # 30〜120 (スキャ寄り)。no_trade は 0
+  max_hold_minutes: integer            # 30〜120 (skill 03 の tier 表)。no_trade は 0
   extension_max_minutes: integer       # 任意。0=無効 (default)。1..240 で MaxHold 後の grace。
                                        # 非対称ルール: soft deadline 後、勝ち/フラット
                                        # (unrealized_pips ≥ -threshold) の間は延長して続伸を待つ。
@@ -49,23 +49,29 @@ exit:
                                        # MaxHold soft deadline の手前の window 内で PnL が
                                        # early_exit_target_pips 以上に達したら即 close。
                                        # MaxHold 強制 close の最悪損失を浅くする (skill 03 参照)。
-                                       # 推奨デフォルト: 15 (スキャ。MaxHold 以下必須)
+                                       # 推奨: round(MaxHold×0.25) (skill 03。MaxHold 以下必須)。
+                                       # daytrade trend tier は 0 (ratchet ON が前提)
   early_exit_target_pips: number       # 任意。-100..100 (sanity)。通常はマイナス値 (例: -2)。
                                        # window 内で「これ以上悪化させずに諦める」閾値。
                                        # early_exit_window_minutes>0 のとき意味を持つ。
                                        # 推奨デフォルト: -2.0
+  ratchet_arm_pips: number             # enabled config では必須 (> 0)。3〜50、ratchet_giveback_pips より大きく。
+                                       # 含み益の peak がこの pips に達したら trailing 利確を開始 (skill 03)。no_trade は 0
+  ratchet_giveback_pips: number        # enabled config では必須 (> 0)。1〜50。peak からこの pips 戻ったら利確。
+                                       # 逆RR floor: arm − giveback ≥ take_profit_pips × 0.5 (割ると reject)。no_trade は 0
 
 risk:
   quantity: 1000                       # 1000 固定 (= 0.1 lot)。no_trade は 0
-  max_open_positions: 1                # 1 固定
+  max_open_positions: 1                # 常に 1 (bot_config の cap を超えると promote で reject)
   max_trades_in_this_window: integer   # 1〜5 (スキャで回転増)。no_trade は 0 でも OK
-  max_loss_in_this_window_jpy: integer # 750〜1500。no_trade は 0 でも OK
+  max_loss_in_this_window_jpy: integer # 推奨 1000〜3000 (hard_limits 上限 5000)。no_trade は 0 でも OK
 
 no_trade:
   enabled: boolean                     # strategy=no_trade なら true。それ以外は false
   reason: string                       # enabled=true のとき必須。日本語で具体的に
 
-next_advisor_run_in_minutes: integer   # 15〜480。skill 06 のテーブル参照。0 は fallback (= auto 60min)
+next_advisor_run_in_minutes: integer   # 0 または 10〜480 (validator)。skill 06 に従い通常は 10 か 30。
+                                       # 0 = scheduler が bot_config.ai_advisor.interval_minutes に fallback
 ```
 
 ## 整合性ルール (Go validator が必ずチェック)
@@ -78,6 +84,9 @@ next_advisor_run_in_minutes: integer   # 15〜480。skill 06 のテーブル参�
 - `valid_until - valid_from` は **必ず 60 分** (許容: 60〜120 分)
 - `confidence` は 0.0〜1.0
 - `direction` と `market_regime` の組み合わせ整合 (trend_up + sell_only は禁止)
+- `enabled=true` のとき `exit.ratchet_arm_pips` / `exit.ratchet_giveback_pips` は両方 > 0 (0/0 は reject)、
+  かつ `arm − giveback ≥ take_profit_pips × 0.5`
+- `next_advisor_run_in_minutes` は 0 または 10〜480
 
 ## 出力例 (正常エントリー / momentum_pullback)
 
@@ -95,12 +104,12 @@ market_regime:
 strategy:
   name: momentum_pullback
 entry:
-  max_spread_pips: 0.5
+  max_spread_pips: 1.0
   require_breakout: false
   direction: buy_only
 exit:
   take_profit_pips: 12.0
-  stop_loss_pips: 8.0
+  stop_loss_pips: 6.0
   max_hold_minutes: 60
   early_exit_window_minutes: 15
   early_exit_target_pips: -2.0
@@ -114,7 +123,7 @@ risk:
 no_trade:
   enabled: false
   reason: ""
-next_advisor_run_in_minutes: 60
+next_advisor_run_in_minutes: 30
 ```
 
 ## 出力例 (no_trade)
@@ -133,7 +142,7 @@ market_regime:
 strategy:
   name: no_trade
 entry:
-  max_spread_pips: 0.5
+  max_spread_pips: 1.0
   require_breakout: false
   direction: none
 exit:
@@ -148,7 +157,7 @@ risk:
 no_trade:
   enabled: true
   reason: "trend_directionが1h/6h/24hで一致せず方向感がない"
-next_advisor_run_in_minutes: 60
+next_advisor_run_in_minutes: 30
 ```
 
 ## 出力時の注意

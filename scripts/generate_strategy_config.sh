@@ -11,6 +11,10 @@ INPUT_FILE="${INPUT_FILE:-runtime/ai_input/latest_summary.json}"
 OUTPUT_FILE="${OUTPUT_FILE:-configs/strategy_config.next.yaml}"
 CLAUDE_BIN="${CLAUDE_CLI_PATH:-claude}"
 
+# bot 本体と同じく、claude にはツールも repo の hooks も使わせず、bot の秘密を環境変数で渡さない。
+SCRUB=(env -u GMO_API_KEY -u GMO_API_SECRET -u DATABASE_URL -u DATABASE_URL_RO -u BACKTEST_DATABASE_URL
+       -u INTEGRATION_TEST_DB_URL -u DASHBOARD_USER -u DASHBOARD_PASS)
+
 if [ ! -f "${PROMPT_FILE}" ]; then
   echo "Prompt file not found: ${PROMPT_FILE}" >&2
   exit 1
@@ -20,7 +24,7 @@ if [ ! -f "${INPUT_FILE}" ]; then
   exit 1
 fi
 
-"${CLAUDE_BIN}" -p "$(cat "${PROMPT_FILE}")
+"${SCRUB[@]}" "${CLAUDE_BIN}" -p --no-session-persistence --tools "" --settings '{"disableAllHooks":true}' "$(cat "${PROMPT_FILE}")
 
 Input JSON:
 $(cat "${INPUT_FILE}")

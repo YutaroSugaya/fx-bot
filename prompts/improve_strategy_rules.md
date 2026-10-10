@@ -38,7 +38,7 @@
 
 ## 実装箇所
 - `prompts/generate_strategy_config.md` の Strategy Guidance に追加
-- `configs/hard_limits.yaml` の max_spread_pips を 0.5 → 0.4 に下げる
+- `configs/hard_limits.yaml` の該当上限 (例: max_spread_pips) を現行値より下げる
 - ... のように、修正先のファイル名 + 該当セクション
 
 ## 期待効果

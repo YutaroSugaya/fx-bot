@@ -12,7 +12,7 @@
 # install (人間が実施。deploy/launchd/README.md 参照):
 #   cp scripts/night-review-cron.sh scripts/night_review.sql ~/.fxbot/
 #   chmod +x ~/.fxbot/night-review-cron.sh
-#   cp deploy/launchd/com.fxbot.night-review.plist ~/Library/LaunchAgents/
+#   plist は deploy/launchd/README.md の手順で /Users/USERNAME 等を置換してから ~/Library/LaunchAgents/ へ
 #   launchctl load ~/Library/LaunchAgents/com.fxbot.night-review.plist
 set -euo pipefail
 

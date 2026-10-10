@@ -58,7 +58,7 @@ func newAdvisorCycleForTest(t *testing.T, symbol string, yaml []byte) (*AdvisorC
 	}, strat
 }
 
-// ① dead-market guard end-to-end: an enabled trade whose TP is unreachable for
+// dead-market guard end-to-end: an enabled trade whose TP is unreachable for
 // the recent 1h range must be promoted as no_trade (downgraded, not rejected).
 // In a dead market a TP far beyond the recent range is never reached, so every
 // trade just pays the cost floor.

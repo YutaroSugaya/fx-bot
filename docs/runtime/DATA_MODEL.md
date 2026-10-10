@@ -469,7 +469,9 @@ Risk Gate が「エントリ条件は満たしたが現在の状態でリスク�
 
 ## market_summaries (main)
 
-Bot が 1 分ごとに作成する MarketSummary の履歴 (`runtime/ai_input/latest_summary.json` の DB shadow)。
+advisor サイクルが使った MarketSummary の履歴。INSERT するのは AdvisorCycle だけで (`advisor_cycle.go`)、1 分ごとの minuteLoop は
+`runtime/ai_input/latest_summary.json` を書くだけ。`ai_advisor` が off ならこのテーブルは空のままで、`cmd/spread-calibrate`
+(と backtest の `-spread-file`) には入力が無い。
 
 | カラム | 型 | 意味 |
 |---|---|---|

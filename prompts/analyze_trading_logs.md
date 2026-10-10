@@ -18,7 +18,9 @@
 
 - `trades` (期間内に決済された取引)
   - side, entry_price, exit_price, profit_loss_pips, profit_loss_jpy,
-    close_reason (take_profit / stop_loss / max_hold), opened_at, closed_at,
+    close_reason (take_profit / stop_loss / max_hold / early_exit / ratchet_takeprofit /
+    ratchet_stoploss / session_flatten / broker_close / manual / reconcile_cold_close),
+    opened_at, closed_at,
     strategy_config_id
 - `signal_rejections` (Risk Gate で reject された signal)
   - reason, detail, created_at, strategy_config_id

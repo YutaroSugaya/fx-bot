@@ -298,7 +298,7 @@ func TestAPIServer_Run_AllowsUnauthenticatedLoopbackBind(t *testing.T) {
 // 認証ありなら bind 先は問わない(BasicAuth が GET / POST の全 /api を守る)。
 // 実際に全インタフェースへ bind しないよう、割り当てられない文書用 IP で listen まで進むことだけ見る。
 func TestAPIServer_Run_AllowsAuthenticatedNonLoopbackBind(t *testing.T) {
-	srv := &APIServer{Addr: "192.0.2.10:0", Auth: APIAuth{User: "u", Pass: "p"}}
+	srv := &APIServer{Addr: "192.0.2.10:0", Auth: APIAuth{User: "u", Pass: "a-long-enough-password"}}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	err := srv.Run(ctx)

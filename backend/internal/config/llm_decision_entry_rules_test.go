@@ -124,7 +124,7 @@ llm_decision:
 	}
 }
 
-// ① MTF veto discipline exemption: the htf_trend_veto would otherwise structurally block
+// MTF veto discipline exemption: the htf_trend_veto would otherwise structurally block
 // the per-currency discipline's own "やる" patterns (positioned 戻りSELL
 // from the 24h top / genuine pullback BUY). The exemption bounds are PER-PAIR maps (same
 // shape as max_range_position_24h_buy) because the discipline defines different pullback zones per

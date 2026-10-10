@@ -116,7 +116,7 @@ TradingCycle が決定論で行う。並行性の詳細は [RUNTIME.md](RUNTIME.
 │   - strategy/  Engine + 登録戦略 (momentum_pullback /    │
 │                ma_pullback / trend_follow 等)。Signal を │
 │                返す純粋関数                               │
-│   - position/  ExitPrices / ComputeTPSLPrices           │
+│   - position/  ComputeTPSLPrices / ComputeClosePnL / State│
 │   - order/     PlaceOrderRequest / Order / Execution     │
 │   - risk/      Gate (cooldown / max_open_positions /     │
 │                daily_loss / consecutive_losses 判定)      │
@@ -129,8 +129,8 @@ TradingCycle が決定論で行う。並行性の詳細は [RUNTIME.md](RUNTIME.
 │   - repository/    pgx + sqlc を使った具体実装           │
 │   - notifier/      Stdout (外部通知は adapter 追加で対応) │
 │   - journal/ playbook/  LLM 判断ジャーナル / playbook     │
-│   - advisor/       ClaudeCLIAdvisor (subprocess + 並列  │
-│                    skill 呼び出し + YAML 取り出し)        │
+│   - advisor/       ClaudeCLIAdvisor (claude -p を 1 回  │
+│                    起動 + 出力から YAML 取り出し)         │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -161,7 +161,7 @@ TradingCycle が決定論で行う。並行性の詳細は [RUNTIME.md](RUNTIME.
 │   ⑧a EvaluateEntry                                          │   │
 │      ├─ strategy.Engine.Evaluate (IsActive + IsHourAllowed   │   │
 │      │  + strategy 固有ロジック)                              │   │
-│      └─ risk.Gate.EvaluateSignal (cooldown 等 10 ゲート)      │   │
+│      └─ risk.Gate.EvaluateSignal (cooldown・同方向・損失 cap 等)│   │
 │        └─ reject → signal_rejections INSERT                  │   │
 │   ⑧b ExecuteOrder.OnSignal (gate allowed のみ)                │   │
 │      ├─ EntryMutex.Lock (auto と manual の衝突防止)            │   │
@@ -196,6 +196,8 @@ ManageOpenPositions.closeOne / ClosePositionCommand.Execute
 │     ├─ broker 側に建玉が無い (GMO ERR-254 = OCO が先に約定) → skip。CLOSING のまま reconcile が記録
 │     ├─ Live で拒否 + 脚を cancel 済み → 元の TP/SL で OCO を置き直す (失敗なら emergency_stop trip)
 │     ├─ Live で拒否 + 脚を 1 本も cancel していない → 元の OCO が生きているので skip
+│     │   (Live で拒否された 2 経路では行は CLOSING のまま残り、bot 側の出口 (MaxHold / ratchet /
+│     │    朝の手仕舞い) はその玉にもう効かない。決済は OCO の約定を reconcile が記録する)
 │     └─ Paper で失敗 → emergency_stop trip
 ├─ ④ Live のみ: ResolveExecution で実約定価格・手数料・スワップを取る (失敗 → emergency_stop trip)
 ├─ ⑤ Closer.CloseAndRecord  ← 1 Tx
@@ -215,25 +217,27 @@ ManageOpenPositions.closeOne / ClosePositionCommand.Execute
 
 ## 6. Claude advisor フロー (scheduler 経路)
 
-(`ai_advisor.enabled: true` のときだけ動く。既定は off)
+(scheduler は `ai_advisor.enabled: true` のときだけ動く。既定は off。手動の `POST /api/advisor/trigger` は `enabled` に関係なく claude を呼ぶ)
 
 ```
 [scheduler goroutine] ai_advisor.interval_minutes ごと (または active config の next_advisor_run_in_minutes)
        │
        ▼
-runAdvisorOnce(ctx, source="auto"|"event"|"manual")
+fireAdvisors(ctx, source) (scheduler) / triggerAdvisor(ctx, symbol) (手動 API)
+       │   — どちらも cmd/bot/main.go のクロージャで、bundle ごとに runBundleAdvisor を呼ぶ
        │
        ├─ advisorFireMu.Lock (scheduler tick と手動 trigger を直列化)
        │
        ├─ AdvisorCycle.Run(ctx, source)
        │   ├─ ① Worker.SnapshotForAdvisor で bot_state 構築
        │   ├─ ② Aggregator から最新 candles 取得 + BuildMarketSummary
-       │   ├─ ③ runtime/ai_input/latest_summary.json に保存
-       │   ├─ ④ ClaudeCLIAdvisor.GenerateConfig(ctx, summary)
-       │   │      └─ claude-code subprocess (timeout = claude_cli_timeout_seconds)
-       │   │         9 skill (regime / strategy_selection / tp_sl /
-       │   │         risk / output / recheck / cost / perf / symbol)
-       │   │         を並列実行 → YAML 出力
+       │   ├─ ③ market_summaries に INSERT (DB に書くのはこの経路だけ。
+       │   │      latest_summary.json は minuteLoop が書く)
+       │   ├─ ④ ClaudeCLIAdvisor.Generate(ctx, summary)
+       │   │      └─ claude -p を 1 回 (timeout = claude_cli_timeout_seconds)。
+       │   │         root が 4 subagent (skill 01〜04) を並列起動し、
+       │   │         統合後に skill 07 → 05 → 06 を自分で読んで YAML 出力。
+       │   │         skill 08 / 09 は使わない
        │   ├─ ⑤ ai_advisor_runs INSERT (status / source / duration)
        │   └─ ⑥ Promoter.PromoteFromYAML(raw, accountState, source)
        │       ├─ Validate (schema / hard_limit / semantic / risk)
@@ -246,8 +250,9 @@ runAdvisorOnce(ctx, source="auto"|"event"|"manual")
        └─ Promoted=true → holder.Set(parsed) — 全 goroutine に伝播
 ```
 
-**手動経路** (`POST /api/advisor/trigger`): 同じ runAdvisorOnce を source="manual" で呼ぶだけ。
-**緊急停止**: `safety.Active(emergency_stop.flag)` を見る。trip 中は新規エントリ全停止。
+**手動経路** (`POST /api/advisor/trigger`): `triggerAdvisor` が source="manual" で同じ `runBundleAdvisor` を呼ぶ。
+**緊急停止**: advisor (と advisor v2) は trip 中も claude を呼び、出てきた新規は risk Gate が `safety.Active(emergency_stop.flag)` で拒否する。
+サイクル冒頭で止まって LLM を呼ばないのは LLM 判断ループだけ (§6.5)。
 
 ---
 
@@ -261,11 +266,14 @@ advisor のように config YAML を生成するのではなく、LLM が毎サ�
 2. サイクル冒頭の決定論ゲート: `runtime/emergency_stop.flag` があれば stage `emergency_stop` で終了 (LLM を呼ばない)。
    続いて `exclude_hours_jst` / `no_entry_hours_jst` / `daily_loss_stop_count` も LLM を呼ぶ前に判定する
 3. `BuildMarketSummary` → `claude -p` (single-agent。[llm_decision_cli.go](../../backend/internal/adapter/advisor/llm_decision_cli.go) の `BuildSingleAgentDecisionPayload` = Go 内テンプレート + playbook `runtime/playbook_<SYMBOL>.jsonl` + MarketSummary JSON) で trade / no_trade + side + TP/SL を判断
-4. コード側 veto 群 (night_buy / chase_buy / sell_low / htf_trend / exhaustion / spike / wide_spread / max_concurrent) を通過したら、
+4. コード側 veto 群を通過したら、
    既存の発注経路 `OnSignal` → risk Gate → broker OCO で発注する。数量は config で固定 (LLM は決めない)。
+   veto はそれぞれ: night_buy (指定した JST 時間の BUY) / chase_buy (24h レンジの上端での BUY = 高値追い) /
+   sell_low (24h レンジの下端での SELL) / htf_trend (24h の動きに逆らう向き) / exhaustion (24h で既に大きく動いた向きへの追随) /
+   spike (15 分で急変している最中) / wide_spread (`max_spread_pips` 超え) / max_concurrent (同方向の建玉数の上限) を拒否する。
    `arm_enabled` 時は条件付きエントリー計画を置き、`ArmedFire` が tick ごとに veto を再検証してから発火する
-5. 保有中は通常の出口 (broker OCO の TP/SL・ratchet・MaxHold) に加え、`session_flatten_jst` 設定時は毎朝の全玉手仕舞いが効く
-6. `reflection_enabled` 時は `runReflectionScheduler` が Reflexion 反省ループ ([reflection_cli.go](../../backend/internal/adapter/advisor/reflection_cli.go)、reflection-{regime,risk,strategy} の 3 subagent) を回し playbook に改訂版を追記する。false なら playbook は人が追記したものだけ
+5. 保有中は通常の出口 (broker OCO の TP/SL・ratchet = 含み益が arm pips に届いたら追跡し、ピークから giveback pips 戻ったら成行で利確するトレーリング出口・MaxHold) に加え、`session_flatten_jst` 設定時は毎朝の全玉手仕舞いが効く
+6. `reflection_enabled` 時 (省略時 true) は `runReflectionScheduler` が Reflexion 反省ループ ([reflection_cli.go](../../backend/internal/adapter/advisor/reflection_cli.go)、reflection-{regime,risk,strategy} の 3 subagent) を回し playbook に改訂版を追記する。false なら playbook は人が追記したものだけ
 7. 全サイクルの判断は `runtime/logs/llm_decisions.jsonl` (event:cycle / parse_fallback) に append される判断ジャーナルで監査可能
 
 キーの意味・既定値は `bot_config.go` の `LLMDecisionSection` が正 ([CONFIG.md §2.1](CONFIG.md))。
@@ -289,11 +297,13 @@ main()  →  run()  in cmd/bot/main.go
 │     - GMO_API_KEY/SECRET が無ければ起動エラー (数量上限は hard_limits.yaml が SSOT)
 ├─ ⑥ paperBroker のみ: restorePaperPositions で DB の OPEN を in-memory に復元
 ├─ ⑦ Promoter / Validator wiring
-├─ ⑧ Aggregator + GMO backfill (4 timeframe × 過去 6 時間ぶん)
+├─ ⑧ Aggregator + candle 復元 (DB → GMO klines の順。1m/5m/15m は 24h、1h は 14 日。
+│     両方とも 0 本なら emergency_stop trip)
 ├─ ⑨ Reconcile.Run (startup mode):
 │     - broker にあって DB にない → adopt (recovered_positions に記録。
 │       Live は external_broker = bot は触らない)
-│     - DB OPEN だが broker にない → paper は synthetic close、
+│     - DB にあるが broker にない → paper は ⑥ で OPEN を戻しているので、
+│       CLOSING のまま残った行だけ synthetic close (reconcile_cold_close)、
 │       Live は実 fill を解決して記録 (まだ解決できなければ runtime reconcile に
 │       回す = 猶予付きで再試行し、hard window を超えたら emergency_stop)
 │     - reconcile がエラーを返す / emergency_stop を trip した → Live は起動中断
@@ -330,8 +340,8 @@ main()  →  run()  in cmd/bot/main.go
 | Live close を broker が拒否 (脚 cancel 後) | 元の TP/SL で OCO を置き直す。置き直しにも失敗したら **emergency_stop trip** (= "close_position_failed_after_settle_cancel") |
 | CloseAndRecord で ok=false (CLOSING でない) | **emergency_stop trip** (= "close_race_double_broker_call") |
 | DB が一時的に落ちる | priceLoop の accountSnapshot エラーで「その tick はスキップ」(loss を 0 と誤認しない) |
-| 起動時に broker と DB がズレてた | Reconcile が揃える。broker にだけある玉は adopt (Live は external = 不可侵)、DB にだけある玉は paper なら synthetic close、Live は実 fill を解決して記録 (まだ解決できなければ runtime reconcile が猶予付きで再試行し、hard window 超過で **emergency_stop trip**。0 円の架空決済は記帳しない) |
-| 起動 mode の active config が DB に無い | paper は起動を続けるが何も建てない (`no_active_config`)。Live は読込・検証失敗で起動中断 |
+| 起動時に broker と DB がズレてた | Reconcile が揃える。broker にだけある玉は adopt (Live は external = 不可侵)、DB にだけある玉は paper なら CLOSING のまま残った行だけ synthetic close (OPEN 行は起動時に PaperBroker へ戻す)、Live は実 fill を解決して記録 (まだ解決できなければ runtime reconcile が猶予付きで再試行し、hard window 超過で **emergency_stop trip**。0 円の架空決済は記帳しない) |
+| 起動 mode の active config が DB に無い | paper / live とも起動を続けるが、そのシンボルは何も建てない (ログは出ない。LLM 判断ループは stage `no_active_config`)。active 行の読込・検証に失敗すると paper は WARN で続行、Live は起動中断 |
 | `runtime/emergency_stop.flag` がある | 新規エントリー全停止。LLM 判断ループは LLM を呼ばずに stage `emergency_stop` で終わる。既存玉の出口 (OCO / ratchet / MaxHold) は動く |
 
 ---
@@ -343,8 +353,8 @@ main()  →  run()  in cmd/bot/main.go
 | `sharedEntryMu` | 全 symbol 横断で ExecuteOrder.OnSignal + ManualTradeCommand.Execute + EntryAdmission を直列化 (account-wide) |
 | `closeMu` | ManageOpenPositions.closeOne + ClosePositionCommand.Execute の broker.ClosePosition |
 | `advisorFireMu` | scheduler tick fan-out + `/api/advisor/trigger` 手動 fire + `BOT_DEBUG_FORCE_ADVISOR` を直列化 |
-| `Aggregator.spreadMu` | 24h spread サンプル append (priceTick: writer / advisor: reader)。bundle 内 |
-| `ActiveConfigHolder.mu` | symbol→config の `sync.Map` access (per-symbol active config) |
+| `Worker.spreadMu` | 24h spread サンプル append (priceTick: writer / advisor: reader)。bundle 内 |
+| (mutex なし) `ActiveConfigHolder` | symbol→config を `sync.Map` で保持 (per-symbol active config) |
 
 ---
 
@@ -356,9 +366,9 @@ main()  →  run()  in cmd/bot/main.go
 | `configs/bot_config.live.yaml` | live 用 bot_config (gitignore。`BOT_CONFIG_PATH` で指定) |
 | `configs/hard_limits.yaml` | strategy config が出せる値の絶対上下限 (quantity / TP / SL / max_hold / per-trade 損失 etc.) |
 | `configs/strategy_config.active.yaml` | DB と同期する artifact (read-only on boot — DB が SoT) |
-| `configs/strategy_config.next.yaml` | Claude が直近に書き出した提案 (validator 待ち) |
+| `configs/strategy_config.next.yaml` | Claude が直近に書き出した提案 (validator 待ち。symbols が 2 つ以上なら `strategy_config.next_<SYMBOL>.yaml`) |
 | `runtime/emergency_stop.flag` | trip 中は新規エントリ全停止 |
-| `runtime/ai_input/latest_summary.json` | 1 分ごとに更新される market summary (Claude 入力) |
+| `runtime/ai_input/latest_summary.json` | 1 分ごとに更新される market summary (Claude 入力。symbols が 2 つ以上なら `latest_summary_<SYMBOL>.json`) |
 | `.env` | DATABASE_URL / GMO_API_KEY / LIVE_* / DASHBOARD_USER/PASS など |
 
 ---

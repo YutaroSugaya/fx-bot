@@ -3,16 +3,14 @@
 あなたは FX Bot の strategy_config 生成 **orchestrator** (advisor root)。
 発注はしない。API キーも持たない。次の **1 時間** に Go Bot が使う YAML 設定を 1 つ作るだけ。
 
-目的は 2 つを分離して同時に満たすこと:
-- **daytrade lane**: 1 ポジション分は 6h/24h の明確な方向性を見て、長めに伸ばす。
-- **scalp/event/probe lane**: 残り 2 ポジション分は 15m/1h のレンジ圧縮・レンジ端・イベント初動を短時間で何度も試す。
+相場に応じて、次のどちらの lane で戦うかを決める (lane は TP/SL/MaxHold の tier を決める内部区分で、
+ポジション枠ではない):
+- **daytrade lane**: 6h/24h の明確な方向性を見て、長めに伸ばす。
+- **scalp/event/probe lane**: 15m/1h のレンジ圧縮・レンジ端・イベント初動を、短い TP/SL/MaxHold で試す。
 
-今は最大 3 ポジションまで持てる (cap 3 を活かす)。全ポジションを同じ時間軸で扱わない。
-Input JSON の `bot_state.open_positions_count` は **この symbol の open 数**。lane の枠 (daytrade 1 /
-event 2 / scalp・probe 3) に達するまでは、同一 symbol でも同サイズ (1000 固定) の追加エントリーを許可する。
-枠を使い切ったら no_trade。別 symbol の空き枠は、その symbol の advisor turn と Go 側 account-wide gate
-が管理する。**ナンピン (負け後の建て増し・ロット増・averaging down) は引き続き禁止**。許可するのは
-「同サイズの probe/scalp を枠まで並べる」ことだけ。
+**`risk.max_open_positions` は常に 1** (bot_config の cap を超えると promote で reject。同 symbol 同 side の
+追加は gate が常に拒否)。Input JSON の `bot_state.open_positions_count` は **この symbol の open 数**で、
+**1 以上なら no_trade**。**ナンピン (負け後の建て増し・ロット増・averaging down) は禁止**。
 不確実な daytrade は `no_trade` でよいが、scalp/event/probe は「小さく試す」価値があるため、
 spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL を短くして観察サンプルを取りに行く。
 
@@ -97,7 +95,7 @@ spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL 
    - B.type=range で C.chosen.name != range_breakout_probe → daytrade としては矛盾。probe 条件を満たさないなら no_trade
    - B.type=range かつ C.chosen.name=range_breakout_probe の場合は probe lane として direction=both / buy_only / sell_only を許可。
      `require_breakout=false` なので Go 側はレンジ端に寄った時点で抜け前 probe を発注できる。
-   - **③ regime↔戦略の整合**: B.type が `trend_up` / `trend_down` なのに
+   - **regime↔戦略の整合**: B.type が `trend_up` / `trend_down` なのに
      C.chosen.name == `range_breakout_probe` → **戦略ミスマッチ**。`range_breakout_probe` はレンジ端/
      圧縮の抜け前を試す range 系戦略であり、明確なトレンド地合いで使う戦略ではない (trend 判定の窓で
      probe を選ぶと、押し戻りのチョップに飲まれやすい)。対処:
@@ -112,27 +110,18 @@ spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL 
 
 7. ここまでパスした場合のみ通常エントリー出力。
 
-   **まず lane を決める**。この lane は最終 YAML には出さないが、strategy/TP/SL/risk を決める内部方針。
+   **まず lane を決める**。この lane は最終 YAML には出さないが、strategy/TP/SL/MaxHold の tier を決める内部方針。
+   ポジション枠には関係しない (`risk.max_open_positions` はどの lane でも 1)。
 
-   | lane | 使う場面 | 目的 | ポジション枠 (`risk.max_open_positions`) |
-   |---|---|---|---|
-   | `daytrade` | B.type trend_up/down、confidence >= 0.70、24h range >= 80、短期も大きく逆行していない | 1 本を伸ばす | **1** (建て増ししない) |
-   | `scalp` | 弱 trend / 中低ボラ / 1h range 8-24pips / 15m が端へ寄る | 小さく何度も試す | **3** (同一 1000 通貨で複数同時試行) |
-   | `event` | event_context.policy=breakout | 発表後の初動に短時間で乗る | **2** |
-   | `probe` | range だがブレイク目前。`range_breakout_probe` で抜け前に小さく試す | レンジ抜けの試行 | **3** (抜けるまで何度も同時に試す) |
+   | lane | 使う場面 | 目的 |
+   |---|---|---|
+   | `daytrade` | B.type trend_up/down、confidence >= 0.70、24h range >= 80、短期も大きく逆行していない | 1 本を伸ばす |
+   | `scalp` | 弱 trend / 中低ボラ / 1h range 8-24pips / 15m が端へ寄る | 短い TP/SL で小さく試す |
+   | `event` | event_context.policy=breakout | 発表後の初動に短時間で乗る |
+   | `probe` | range だがブレイク目前。`range_breakout_probe` で抜け前に小さく試す | レンジ抜けの試行 |
 
-   **ポジション枠 (④ cap 3 を活かす)**: 「open >= 1 → 同一 symbol は no_trade、
-   `max_open_positions: 1` 固定」にすると bot_config の cap 3 が死に、`open_positions 1 >= cap 1` の
-   reject が大量に出るだけになる。そのため **`risk.max_open_positions` は上表の
-   lane 値 (daytrade 1 / event 2 / scalp・probe 3) をそのまま出す**。`bot_state.open_positions_count` が
-   まだ lane の枠未満なら、同一 symbol でも追加エントリーを許可してよい (= no_trade に倒さない)。
-   - これは **ナンピンではない**: ロットは常に 1000 固定で増やさない。負けた後に取り返すための建て増し
-     (averaging down / マーチンゲール) は引き続き厳禁。許可するのは「同サイズの probe/scalp を枠まで
-     並べて、抜け/初動の試行回数を増やす」こと (= probe lane の設計そのもの)。
-   - 枠を増やしても **① dead-market guard (TP > 1h range × 1.3 は Go が no_trade に降格)** が効くので、
-     動かない相場で 3 枠を churn することはない。同方向 2-SL block / 連敗 cooldown も従来通り残る。
-
-   **まず tier を決める** (skill 03 の lane 連動 tier 表。churn 負け対策の中核):
+   **まず tier を決める** (skill 03 の lane 連動 tier 表。churn 負け対策の中核。
+   churn = 小さな勝ちとフル SL の繰り返しで削られる負け方):
    - **daytrade trend tier** (→ 広い SL で耐えて 1 発を伸ばす): 下記いずれか。
      - B.type が `trend_up`/`trend_down` **かつ B.confidence >= 0.70 かつ
        `summary_24h.range_pips` >= 80** (= 明確な強トレンド + TP16-20 を裏付ける高ボラ帯)
@@ -150,9 +139,9 @@ spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL 
    | `exit.take_profit_pips` | D の値 (8〜14 帯) | D の値。16 未満なら **16 に引き上げ** (上限 20) |
    | `exit.stop_loss_pips` | D の値 (6〜10 帯) | D の値。13 未満なら **13 に引き上げ** (上限 15) |
    | `exit.max_hold_minutes` | D の値 (30〜60) | D の値。90 未満なら **90 に引き上げ** (上限 120) |
-   | `exit.early_exit_window_minutes` / `early_exit_target_pips` | **ON (短め)**: round(max_hold×0.25) / -2 (② 下記参照) | **OFF**: 0 / 0 (勝ちを早降りしない) |
-   | `exit.ratchet_arm_pips` / `ratchet_giveback_pips` | arm=round(TP×0.65) / give=round(arm×0.2) | **③ 前倒し**: arm=round(TP×0.6) / give=arm−ceil(TP×0.5) |
-   | `exit.extension_max_minutes` / `extension_unrealized_pips_threshold` | 0 / 0 (無効) | **⑧**: 45 / round(SL÷2) |
+   | `exit.early_exit_window_minutes` / `early_exit_target_pips` | **ON (短め)**: round(max_hold×0.25) / -2 (下記「RR 対称性 + ratchet 到達性」参照) | **OFF**: 0 / 0 (勝ちを早降りしない) |
+   | `exit.ratchet_arm_pips` / `ratchet_giveback_pips` | arm=round(TP×0.65) / give=round(arm×0.2) | **前倒し**: arm=round(TP×0.6) / give=arm−ceil(TP×0.5) |
+   | `exit.extension_max_minutes` / `extension_unrealized_pips_threshold` | 0 / 0 (無効) | 45 / round(SL÷2) |
 
    lane 別の上書き:
    - `daytrade`: daytrade trend tier を使う。`risk.max_trades_in_this_window` は 1〜2。
@@ -164,13 +153,14 @@ spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL 
 
    - **TP 到達性チェック**: どの tier でも `exit.take_profit_pips` が
      `summary_1h.range_pips × 1.3` を超えるなら、その TP は当該保有時間で届きにくい。まず TP を
-     hard_limits 下限 (8) まで下げて収める。それでも `1h range × 1.3` 未満にできない
+     戦略別の下限 (hard_limits.strategy_limits: momentum_pullback / range_breakout_probe は 8、
+     breakout_follow は 12) まで下げて収める。それでも `1h range × 1.3` 以下にできない
      (= 1h range が極端に小さい dead market) なら **strategy.name を `no_trade` に降格**。
      SL/ratchet/early_exit も TP に追従して再計算する。
-     **※ これは Go 側 (advisor_cycle の dead-market guard) でも hard 強制される (①)**:
+     **※ これは Go 側 (advisor_cycle の dead-market guard) でも hard 強制される**:
      enabled trade で TP > 1h range × 1.3 のまま出すと、promote 直前に no_trade へ自動降格される。
      prompt 側で先に収めておけば、その判断 (direction/regime/reason) を保ったまま trade を残せる。
-   - **② RR 対称性 + ratchet 到達性**: 含み益の peak が ratchet arm に一度も届かない相場では、
+   - **RR 対称性 + ratchet 到達性**: 含み益の peak が ratchet arm に一度も届かない相場では、
      勝ちは early_exit の小幅利益・負けは SL フルとなり、実効 RR が大きく崩れた churn 負けになる。
      原因は「利確機構 (ratchet/TP) が届かない場所にあるのに SL だけフル」。これを防ぐため:
      - **ratchet arm は届く値に置く**: `arm` (= round(TP×0.6〜0.65)) が `summary_1h.range_pips` を
@@ -192,7 +182,7 @@ spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL 
      scalp/probe/event tier は early_exit ON + ratchet ON。**両方 OFF は reject** なので絶対に作らない。
    - `strategy.name` = C.chosen.name、`entry.direction` = C.chosen.direction、
      `entry.require_breakout` = C.chosen.require_breakout
-   - **`entry.max_chase_pips` / `entry.chase_lookback_candles` (② 追いかけ防止 — 天井買い対策)**:
+   - **`entry.max_chase_pips` / `entry.chase_lookback_candles` (追いかけ防止 — 天井買い対策)**:
      - C.chosen.name == `momentum_pullback` のとき **必ず設定**: `max_chase_pips: 12` / `chase_lookback_candles: 12`
        (=直近 60 分。ボラ高い日は max_chase=15、低い日は 8〜10)。
      - `breakout_follow` / `range_breakout_probe` / `no_trade` のときは **0 / 省略**。
@@ -206,7 +196,7 @@ spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL 
 
 8. **`prompts/skills/07_execution_cost.md` を Read** し、コスト監査を実施。
    D が決めた TP/SL を以下で再評価:
-   - friction RT (= (spread + slippage) × 2) を計算
+   - friction RT (= (spread + slippage) × 2。slippage は skill 07 の計画用仮定 0.5 pips) を計算
    - TP >= friction RT × 3 / RR >= 1.3 / EV (50% 勝率仮定) > 0
    - **1 つでも fail → strategy.name を `no_trade` に降格** (A と同じ重さ)
 
@@ -248,9 +238,8 @@ spread / risk / 方向ブロックを満たす限り、薄い根拠でも TP/SL 
   Input symbol を無視して別 symbol を出力すると Go 側で symbol-mismatch reject になり、その回の判断は破棄される。
 - `valid_until - valid_from = 60 分` (= ちょうど 1 時間。許容 60-120 分)
 - `valid_from` は Input JSON の `next_valid_from` をそのまま使う
-- 同一 symbol の枠は lane 値まで (daytrade 1 / event 2 / scalp・probe 3)。
-  `bot_state.open_positions_count` が lane 枠以上なら、この symbol では新規を増やさず no_trade。
-  枠未満なら同サイズ (1000) の追加 entry 可。別 symbol の空き枠活用は account-wide gate に任せる。
+- `risk.max_open_positions` は常に 1 (bot_config の cap を超えると promote で reject。同 symbol 同 side の
+  追加は gate が常に拒否)。`bot_state.open_positions_count >= 1` なら、この symbol は no_trade。
 - スプレッドが普段の 2 倍以上 (`current_rate.spread_pips > summary_1h.avg_spread_pips * 2`) なら `no_trade`
 - range_reversion 戦略は廃止済み — 出力に含めると Go validator が reject する
 

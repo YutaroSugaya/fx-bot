@@ -57,7 +57,7 @@ func TestLLMDecisionCycle_NoTrade_NoSubmit(t *testing.T) {
 	}
 }
 
-// ③ richer per-trade knowledge: every journalled cycle must pair the LLM's prose
+// richer per-trade knowledge: every journalled cycle must pair the LLM's prose
 // reason with the OBJECTIVE decision-time market context (price/spread/ATR/trend),
 // so the knowledge base is analyzable ("this kind of setup → this outcome").
 func TestLLMDecisionCycle_JournalsMarketContext(t *testing.T) {
@@ -236,7 +236,7 @@ func TestLLMDecisionCycle_JournalsDeciderErrorWithText(t *testing.T) {
 	}
 }
 
-// ① MTF directional veto: the LLM loop
+// MTF directional veto: the LLM loop
 // must NOT enter AGAINST the last day's move — a counter-trend BUY into a falling day /
 // SELL into a rising day is where losses concentrate.
 // It is judged on the SAME yardstick the playbook advertises: summary_24h.change_pips
@@ -293,7 +293,7 @@ func TestLLMDecisionCycle_HTFTrendVeto(t *testing.T) {
 	}
 }
 
-// ① veto must FAIL-OPEN: with no trustworthy 24h window (no summary at all, or
+// veto must FAIL-OPEN: with no trustworthy 24h window (no summary at all, or
 // zero candles behind it) the cycle must NOT block — it proceeds to the normal risk Gate +
 // broker OCO (a missing-data veto would silently halt all trading). Counter-trend BUY here would be vetoed IF the window were measurable.
 func TestLLMDecisionCycle_HTFTrendVeto_FailsOpen(t *testing.T) {
@@ -341,10 +341,10 @@ func summaryChgRposNoTicker(chg24, rpos float64, numCandles int) func() *market.
 	}
 }
 
-// ① discipline exemption (off in the default config, but the MECHANISM stays for
+// discipline exemption (off in the default config, but the MECHANISM stays for
 // per-currency lane configs): a POSITIONED
 // counter-trend entry — SELL from the top of the 24h range (rpos ≥ Sell bound) or BUY from a
-// genuine pullback (rpos ≤ Buy bound) — is exempt from the ① veto; mid-range counter-trend is
+// genuine pullback (rpos ≤ Buy bound) — is exempt from the veto; mid-range counter-trend is
 // still refused. Config-gated (0 = no exemption = default behaviour) and requires a
 // trustworthy 24h window WITH a real rate — with no data the veto stands (the exemption
 // fail-closes; only the veto itself fails open).
@@ -420,7 +420,7 @@ func TestLLMDecisionCycle_HTFTrendVeto_DisciplineExempt(t *testing.T) {
 	}
 }
 
-// ② ratchet wiring: the LLM loop must FREEZE its configured
+// ratchet wiring: the LLM loop must FREEZE its configured
 // trailing ratchet (arm/giveback) onto every submitted signal so OnTick can lock
 // in profit on a runner that reverses — the "夜に乗った利益を吐き出す" leak. With
 // arm/give left at 0 the ratchet never fires; this locks the propagation so a
@@ -444,7 +444,7 @@ func TestLLMDecisionCycle_SubmitsRatchetFromConfig(t *testing.T) {
 	}
 }
 
-// ③ Night-BUY veto: BUY entries during the configured JST night hours are refused in CODE, not
+// Night-BUY veto: BUY entries during the configured JST night hours are refused in CODE, not
 // prompt — late-night JST BUYs (0:00-5:59) tend to be thin-liquidity chases of an overnight move.
 // SELL passes (downside can continue through the night). Empty hours = OFF (back-compat).
 func TestLLMDecisionCycle_NightBuyVeto(t *testing.T) {
@@ -515,7 +515,7 @@ func summary24h(rpos float64, numCandles int) func() *market.MarketSummary {
 	}
 }
 
-// ④ High-chase BUY veto: a BUY with the price already in the top of the trailing 24h
+// High-chase BUY veto: a BUY with the price already in the top of the trailing 24h
 // range is a chase into an extended move. Above the per-pair ceiling the BUY is refused in code —
 // a prompt-only "buy pullbacks" rule is not reliable (the LLM can call a 15-pip dip off the high a
 // "押し目").
@@ -564,7 +564,7 @@ func TestLLMDecisionCycle_ChaseBuyVeto_RangePos24h(t *testing.T) {
 	}
 }
 
-// ⑤ Sell-low veto: chasing a SELL into the bottom of the 24h range is banned per-pair for pairs
+// Sell-low veto: chasing a SELL into the bottom of the 24h range is banned per-pair for pairs
 // that tend to REBOUND off their lows. Pairs where sell-low continuation holds keep it OFF.
 // 0 = OFF. Missing 24h data fails open.
 func TestLLMDecisionCycle_SellLowVeto_RangePos24h(t *testing.T) {

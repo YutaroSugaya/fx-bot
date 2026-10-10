@@ -107,7 +107,7 @@ func TestPositionCloser_AtomicTxRollsBackOnInsertError(t *testing.T) {
 
 ### Advisor
 
-- [backend/internal/adapter/advisor/claude_cli.go](../../../backend/internal/adapter/advisor/claude_cli.go) — `claude-code` subprocess + 9 skill 並列実行 + YAML 抽出
+- [backend/internal/adapter/advisor/claude_cli.go](../../../backend/internal/adapter/advisor/claude_cli.go) — `claude -p` を 1 回起動 (プロンプト側で 4 subagent を並列に使う) + 出力から YAML 抽出
 
 ### Artifact (file)
 

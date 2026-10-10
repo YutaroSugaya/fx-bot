@@ -1,9 +1,9 @@
 # Skill: 市況分類 (market_regime)
 
-> ⚠️ **デイトレ主軸**: 当 bot はデイトレ単一土俵に統一。**方向の主軸は
+> ⚠️ **regime の方向判定の主軸は
 > summary_6h(主)+ summary_24h(大局)**。summary_1h は「6hと同方向か・逆行が浅い押し目/戻りか」の
-> 確認に使い、summary_15m/5m は入りのタイミングだけ。**6h が unclear/方向不明なら regime も unclear 寄り**に
-> 倒し、no_trade を促す(下位足だけのトレンドで trend 判定しない)。スキャル lane は廃止。
+> 確認に使い、summary_15m/5m は regime の方向判定には使わない(scalp/probe lane の値幅・レンジ端の判断に使う。下記)。**6h が unclear/方向不明なら regime も unclear 寄り**に
+> 倒し、no_trade を促す(下位足だけのトレンドで trend 判定しない)。
 
 Input JSON の **全フィールド** を読み、現在の相場状態を 1 つに分類する。
 1h だけ、24h だけで判断せず、必ず複数の時間軸 + 補助情報をクロスチェックする。
@@ -82,10 +82,10 @@ scalp/probe の主軸として読む。1 つの時間軸だけで全ポジショ
    - 必須: `summary_6h.trend_direction == "flat"` かつ `summary_24h.trend_direction == "flat"`
    - かつ `summary_6h.range_pips <= summary_24h.range_pips * 0.5` (動きが落ち着いている)
    - 補強: `support` と `resistance` が両方定義されていて、現在値がその間にある → confidence 0.6〜0.75
-   - **重要**: daytrade lane では range は原則 `no_trade`。ただし scalp/probe lane では
+   - **重要**: daytrade lane では range は原則 `no_trade`。ただし probe lane では
      `summary_1h.range_pips` が 8〜24pips 程度あり、現在値が support/resistance 近辺に
-     寄っているなら breakout 待ちの候補になる。range_reversion は廃止済みなので逆張りではなく
-     `breakout_follow` を arm する。
+     寄っているなら、抜け前に小さく試す候補になる。range_reversion は廃止済みなので逆張りではなく
+     `range_breakout_probe` (require_breakout=false) を使う (skill 02 のフロー 4)。
 
 7. **上記いずれにも当てはまらない → `unclear`** (滅多に発火しないはず)
    - 6h が "flat" かつ Step 6 (range) の range_pips 条件も満たさない、というレアケースのみ
@@ -104,9 +104,9 @@ scalp/probe の主軸として読む。1 つの時間軸だけで全ポジショ
 - 最終 confidence は **0.0〜1.0 に clamp**
 
 `confidence < 0.3` のときは、`type` が `unclear` / `volatile` 以外でも **`unclear` に上書き** する。
-(データ蓄積フェーズの閾値。
-デイトレは確信度低くても中長期トレンドに乗る価値があるため、0.3〜0.5 の "weak trend" もエントリーする。
-ただし 0.3 未満は完全にノイズなので no_trade。)
+(0.3〜0.5 の "weak trend" は分類として残し、daytrade にするか scalp/probe で小さく試すかは
+skill 02 と root の lane 判定に委ねる。0.3 未満はノイズとして扱う。なお enabled config は
+confidence < 0.35 だと Go validator が reject する。)
 
 ## lane_hint の出し方
 

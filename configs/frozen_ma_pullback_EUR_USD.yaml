@@ -1,7 +1,6 @@
 # frozen-mapb (EUR_USD) — 200MA pullback デイトレ runner 固定 active config(凍結実験)
 # ------------------------------------------------------------------
-# ma_pullback の scalp 版 (v3) を「デイトレ runner」へ retune した版。config_id を v3-1 に分け、
-# scalp 版の計測と混ぜず N を 0 から測る。戦略コードは共通 (ma_pullback) で出口だけ runner 化。
+# ma_pullback の出口を「デイトレ runner」(trailing ratchet で勝ちを伸ばす) にした config。
 # 公開手法の調査からの逆算。
 # EUR_USD (pip=0.0001) は ma_pullback が market.PipSize で pip 建てを正しく扱うので JPY と同一ロジック。
 #
@@ -12,9 +11,10 @@
 #        主出口 = trailing ratchet (arm16/give8: 含み益 +16 で武装→ピークから 8 戻しで決済=勝ちを伸ばす)。
 #        TP = 次の高安の密集地帯 far edge (構造的 backstop 30-80, ratchet arm より上で先取りしない)。
 #        SL = 守る 5m MA のブレイク基準 (構造的 8-20)。時間stop = 480 分 (塩漬け回収)。
-#        ↑ scalp 版 (TP cap20 / ratchet 無 / 時間stop 無) からの意図的な runner 化。
+#        ↑ 薄利で切る出口 (TP 上限 20 / ratchet 無 / 時間stop 無) にしないのは意図的 (勝ちを伸ばす)。
 #
-# 5m 200MA は起動時の 24h 復元 (288本バッファ) で満たされるので 1h バッファ追加は不要。
+# 5m 200MA は起動時の 24h 復元 (288 本) で、1h 200SMA の傾き (220 本) は 1h の 14 日復元で満たす
+# (DB に 1h 足が溜まっていない初回は本数が足りず、溜まるまで見送ることがある)。
 # 有効化 = DB strategy_configs(status='active')に seed する:
 #   bash scripts/seed_active_config.sh [--apply] [--mode paper_config|live_config] configs/frozen_ma_pullback_EUR_USD.yaml
 config_id: "frozen-mapb-eurusd-v3-1"
@@ -27,10 +27,10 @@ symbol: EUR_USD
 enabled: true
 
 market_regime:
-  # direction=both なので regime は方向を縛らない (実行時の 5m 200MA トレンドが side を決める)。
+  # direction=both なので regime は方向を縛らない (実行時の 1h 200SMA の傾きが side を決める)。
   type: "unclear"
   confidence: 0.70
-  reason: "frozen manual config (experiment v3.1 runner / ma_pullback); side は 5m 200MA トレンドで決定"
+  reason: "frozen manual config (ma_pullback, ratchet で伸ばす出口); side は 1h 200SMA の傾きで決定"
 
 strategy:
   name: "ma_pullback"
@@ -44,7 +44,7 @@ entry:
   direction: "both"
 
 exit:
-  # v3.1 (デイトレ runner): runtime 出口は戦略 (ma_pullback.go) が定数で算出する:
+  # デイトレ runner: runtime 出口は戦略 (ma_pullback.go) が定数で算出する:
   #   主出口 = trailing ratchet (arm16/give8) / TP = 構造的 backstop 30-80 / SL = 構造的 8-20 /
   #   時間stop = 480 分。ratchet と max_hold は下で戦略定数と一致させ、live 監査行を正直に。
   #   take_profit_pips / stop_loss_pips は validator + dead-market guard 用の代表 placeholder で
@@ -57,7 +57,7 @@ exit:
   extension_unrealized_pips_threshold: 0.0
   early_exit_window_minutes: 0
   early_exit_target_pips: 0.0
-  # trailing ratchet = v3.1 runner の主出口 (戦略定数 arm16/give8 と一致)。
+  # trailing ratchet = runner の主出口 (戦略定数 arm16/give8 と一致)。
   ratchet_arm_pips: 16.0
   ratchet_giveback_pips: 8.0
 

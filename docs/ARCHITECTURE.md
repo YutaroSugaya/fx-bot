@@ -55,7 +55,7 @@ Safety (safety/) ← 全層から依存可 (cross-cutting)
 - ❌ `usecase` が `*broker.GmoBroker` などの具体型を知る (interface 経由のみ)
 - ❌ `handler` が直接 repository を呼ぶ
 - ❌ `domain` が `pgx`, `net/http`, `slog`, `os` を import する
-- ❌ `port` が `config` を import する (R1 guardrail)
+- ❌ `port` が `config` を import する (R1 guardrail。[layers/port.md](architecture/layers/port.md))
 
 ---
 

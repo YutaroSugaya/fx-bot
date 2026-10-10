@@ -18,7 +18,7 @@ enabled: true
 market_regime:
   type: "unclear"
   confidence: 0.70
-  reason: "frozen manual config (experiment v1); side は実行時トレンドで決定"
+  reason: "frozen manual config (momentum_pullback, 固定 TP/SL); side は実行時トレンドで決定"
 
 strategy:
   name: "momentum_pullback"

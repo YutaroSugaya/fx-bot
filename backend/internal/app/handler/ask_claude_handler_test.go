@@ -17,7 +17,7 @@ import (
 func mkAskHandler(runner query.PromptRunner) *AskClaudeHandler {
 	return &AskClaudeHandler{
 		Query: &query.AskClaudeQuery{
-			// A1: missing-artifact store — Execute falls back to {} JSON.
+			// missing-artifact store — Execute falls back to {} JSON.
 			SummaryStore: artifact.NewFileMarketSummaryStore("/non/existent"),
 			Runner:       runner,
 		},

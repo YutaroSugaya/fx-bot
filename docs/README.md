@@ -27,6 +27,7 @@
 | [runtime/SYSTEM_DESIGN.md](runtime/SYSTEM_DESIGN.md) | 全体図と起動 / 発注 / 決済 / advisor のフロー |
 | [runtime/RUNTIME.md](runtime/RUNTIME.md) | 常駐 goroutine・mutex・カウンタ・`runtime/` のファイル |
 | [runtime/CONFIG.md](runtime/CONFIG.md) | bot_config / hard_limits / strategy config と、active config を DB に入れる手順 |
+| [../configs/README.md](../configs/README.md) | `configs/` の各ファイル (戦略 config のファミリーと用途・config-check の可否) |
 | [runtime/STATE_MACHINE.md](runtime/STATE_MACHINE.md) | Position の状態遷移と position_state_events |
 | [runtime/DATA_MODEL.md](runtime/DATA_MODEL.md) | PostgreSQL の全テーブルと不変条件 |
 | [runtime/OBSERVABILITY.md](runtime/OBSERVABILITY.md) | カウンタ・`/api/status`・監査テーブル・ログ |

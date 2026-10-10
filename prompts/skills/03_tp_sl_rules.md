@@ -1,58 +1,31 @@
-# Skill: TP / SL / MaxHold ルール (デイトレ版)
-
-> ⚠️⚠️ **現行の実値はこの行が最優先: TP30 / SL10・ratchet arm14/give8。**
-> SL10 の根拠 = MAE 分析(勝ちトレードの大半は MAE<10 に収まり、フル SL に達した玉はほぼ戻らない)。
-> 以下の TP50/SL25・arm30/give12 はデイトレ初期値(参考。上の行が優先)。
->
-> ⚠️ **デイトレ版 — この冒頭ブロックが下記スキャル記述に優先する。**
-> スキャル(TP8-20・小pips・回転重視)は撤退。**狙う値幅は数十pips(TP50/SL25・RR2が中心)**。
-> 下の「lane 連動 tier / Adaptive TP テーブル / スキャ tier」等の **8〜20pips 系の数値は旧スキャル用で無効**。
-> 値の指針はこのブロックに従うこと(下の詳細はトレーリング/early_exit の機構説明としてのみ読む)。
->
-> **デイトレの土俵**:
-> - 方向は summary_6h(主)+ 24h(大局)で決める。1hだけで決めない。6hに逆らう side は取らない。
-> - TP は上位足の次の節目(6h/24h高安・ラウンドナンバー・前日終値)目安。既定 **TP50**、近ければ節目・遠ければ最大100。
-> - SL は **25**(押し/戻りの構造の外。1hノイズに耐える)。RR ≈ 2.0。
-> - MaxHold は最大 1440分(24h・日跨ぎ許容)。利確は固定TP(broker OCO)+ ratchet(arm30/give12)が伸ばしつつ吐き出し防止。
-> - 5m/15m は入りのタイミングだけ。小pipsで利確しない。
->
-> **デイトレ戦略別レンジ(下の hard_limits と一致)**:
->
-> | strategy.name | take_profit_pips | stop_loss_pips | 使い分け |
-> |---|---|---|---|
-> | momentum_pullback | 30 〜 80 | 15 〜 40 | 上位足トレンドの押し目を数十pips取る |
-> | breakout_follow | 40 〜 100 | 20 〜 45 | 上位足方向のブレイク追随(measured move) |
-> | range_breakout_probe | 20 〜 50 | 15 〜 30 | デイトレでは原則使わない(節目間が広い時のみ) |
-> | no_trade | 0(必ず) | 0(必ず) | エントリーしない |
-
----
-
-(以下はスキャル用の詳細。**数値はデイトレ版では無効**。機構の挙動説明としてのみ参照する。)
+# Skill: TP / SL / MaxHold ルール
 
 選んだ strategy.name に応じて、`exit.take_profit_pips` と `exit.stop_loss_pips` の
 許容範囲が決まっている。**この範囲を外すと Go 側 validator が config を reject する。**
 
-## 戦略別レンジ (configs/hard_limits.yaml の strategy_limits と完全一致)
+## 戦略別レンジ (configs/hard_limits.yaml の strategy_limits と一致)
 
 | strategy.name      | take_profit_pips | stop_loss_pips | 想定使い分け |
 |--------------------|------------------|----------------|---|
-| momentum_pullback  | 30.0 〜 80.0      | 15.0 〜 40.0    | 上位足トレンドの押し目(デイトレ) |
-| breakout_follow    | 40.0 〜 100.0     | 20.0 〜 45.0    | 上位足方向のブレイク追随(デイトレ) |
-| range_breakout_probe | 20.0 〜 50.0    | 15.0 〜 30.0    | デイトレでは原則 no_trade |
+| momentum_pullback  | 8.0 〜 80.0       | 6.0 〜 40.0     | トレンドの押し目/戻り (daytrade / scalp lane) |
+| breakout_follow    | 12.0 〜 100.0     | 8.0 〜 45.0     | ブレイク追随 (daytrade / event lane) |
+| range_breakout_probe | 8.0 〜 50.0     | 6.0 〜 30.0     | レンジ端の抜け前 probe (probe lane) |
 | no_trade           | 0 (必ず)         | 0 (必ず)        | エントリーしない |
+
+これは validator が reject する外枠。実際に出す値は、下の lane 連動 tier 表の帯に収める。
 
 ## lane 連動 tier — まずこれで方針を決める
 
 `market_regime.type` と選んだ strategy.name だけでなく、root が決める lane で tier を切り替える。
 range/scalp/probe は「短く薄利を数こなす」、daytrade は「広い SL で耐えて 1 発を伸ばす」。
 trend_up と正しく判定しても scalp tier で戦うと、通常の押しで SL を狩られ、勝ちは早期 exit で
-薄利撤退する churn 負けになる。その対策。
+薄利撤退する churn 負け (= 小さな勝ちとフル SL の繰り返しで削られる負け方) になる。その対策。
 
 | 項目 | **scalp/probe tier** | **daytrade trend tier** |
 |---|---|---|
 | TP | 8〜14 (回転重視) | **16〜20** (伸ばす余地) |
 | SL | 6〜10 (タイト) | **13〜15** (通常の押し/戻りに耐える) |
-| early_exit | **ON** (window 15 / target -2) | **OFF** (window 0 / target 0) ← 勝ちを早降りしない |
+| early_exit | **ON** (window ≈ round(MaxHold×0.25) / target -2) | **OFF** (window 0 / target 0) ← 勝ちを早降りしない |
 | ratchet | arm ≈ TP×0.6 | **主体。arm を RR floor 下限 (≈ TP×0.5〜0.55) まで下げて早めにトレール開始** |
 | max_hold | 30〜60 分 | **90〜120 分** (+ extension で勝ち継続を待つ) |
 
@@ -99,7 +72,7 @@ trend_up と正しく判定しても scalp tier で戦うと、通常の押し�
 
 **狙い (スキャ寄り)**: TP を小さめ (8〜20) にして 1 日のトレード回数を増やす。spread0.5 に対し
 TP の ~3〜6% なので回数を増やしてもコスト負けしにくい。TP<8 は spread 比率が悪化するため
-hard_limits で下限 8 に固定。回数増は薄いエッジを増幅するので、勝率/RR の悪化には注意。
+strategy_limits で下限 8 (breakout_follow は 12) に固定。回数増は薄いエッジを増幅するので、勝率/RR の悪化には注意。
 
 **Adaptive TP は上限として常に優先する**: daytrade trend tier の「TP16-20」も上の帯を超えない。
 中ボラ(40-80)なら最大16、低ボラ(<40)なら最大12。さらに **TP は `summary_1h.range_pips × 1.3` を
@@ -107,7 +80,7 @@ hard_limits で下限 8 に固定。回数増は薄いエッジを増幅する�
 TP16-20 を 1h range 5〜15pips の中低ボラ相場に置くと、**TP にほぼ届かない**
 churn 負けになる。届く TP にできないほど 1h range が小さい dead market は `no_trade`。
 
-## ② RR 対称性 + ratchet 到達性 (最重要)
+## RR 対称性 + ratchet 到達性 (最重要)
 
 含み益の peak が ratchet arm に一度も届かない相場では、勝ちは early_exit の薄利・負けは SL フルとなり、
 実効 RR が大きく崩れた churn 負けになる。
@@ -123,9 +96,10 @@ churn 負けになる。届く TP にできないほど 1h range が小さい de
 ## SL の決め方の指針
 
 - **6〜15 pips** が基本。スキャ tier の短時間保有 (30〜120 分) に合わせた幅
-- スプレッドは平常 ≤1.0 pips を目安。**明確なチャンス時は `entry.max_spread_pips` を 1.5 まで
-  許容してよい** (hard_limits 上限も 1.5)。ただし spread1.5 はコスト比が悪化するので
-  skill 07 の friction を満たす TP (目安 TP>=12) のときだけ。根拠が薄い・低ボラなら従来通り見送り。
+- スプレッドは平常 ≤1.0 pips を目安。**明確なチャンス時は `entry.max_spread_pips` を広げてよい**
+  (hard_limits.max_spread_pips の範囲 0.3〜3.0 内)。ただし広げるほどコスト比が悪化するので、
+  skill 07 の friction で TP>=3×friction を再計算して満たすときだけ。**spread 1.5 以上は TP>=12 のときだけ**。
+  根拠が薄い・低ボラなら見送り。
   異常拡大 (普段の 2 倍以上、東京早朝 ~10pips 等) は root の相対ガードで no_trade。
 - リスクリワード比 (TP/SL) は **1.2 以上** を目標。1.0 を切るなら no_trade
 
@@ -167,7 +141,7 @@ MaxHold (例: 45〜90 分) が経過した瞬間に MARKET 強制 close する�
   ratchet が ON のときだけ許可** (early_exit / ratchet の少なくとも一方で最悪損失を緩和)。
   scalp/probe/event tier は early_exit ON、daytrade trend tier は early_exit OFF + ratchet 主体。両方 OFF は reject。
 
-### 推奨デフォルト値 (②: 損切り救済に限定し、勝ちを刈らない)
+### 推奨デフォルト値 (損切り救済に限定し、勝ちを刈らない)
 
 early_exit は窓の **最初** に `unrealized ≥ target` を満たした tick で発火する。窓を広く取ると
 (例: 35 分 hold で window 15 → 分 20 で発火) target -2 ではほぼ毎回 window 頭で close し、

@@ -22,7 +22,7 @@ enabled: true
 market_regime:
   type: "unclear"
   confidence: 0.70
-  reason: "v7 re-seed; エントリー判断は LLM ループ(playbook)が担当。engine 側 trend_follow は entries disabled"
+  reason: "LLM 判断ループの active(FK とリスク設定の受け皿)。エントリー判断は LLM ループが担当し、engine の trend_follow は新規を出さない"
 
 strategy:
   name: "trend_follow"

@@ -1,6 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // ダッシュボードは決済・緊急停止のボタンを持つので、他サイトの iframe に埋め込ませない(clickjacking 対策)。
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+        ],
+      },
+    ]
+  },
   // Proxy API calls to the Go backend in dev so the browser doesn't need CORS.
   async rewrites() {
     return [

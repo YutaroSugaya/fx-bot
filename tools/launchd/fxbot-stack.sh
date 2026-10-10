@@ -8,7 +8,7 @@
 #
 # 導入 (1回だけ。plist 内の /Users/USERNAME は自分の $HOME に置き換える。
 # repo が ~/Desktop/fx-bot 以外なら plist のスクリプトのパスも直し、FXBOT_REPO を設定する):
-#   sed "s#/Users/USERNAME#$HOME#g" tools/launchd/com.fxbot.stack.plist > ~/Library/LaunchAgents/com.fxbot.stack.plist
+#   手順は deploy/launchd/README.md(repo の場所と $HOME の 2 段で置換してから load する)。
 #   launchctl load ~/Library/LaunchAgents/com.fxbot.stack.plist
 #   ※ load した瞬間に RunAtLoad で即起動する (手動 make start は不要になる)。
 #   ※ ログイン・再起動のたびに、その時の bot_config / .env のまま起動する (live 設定なら live で動く)。
